@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
-from src.viewpointdiversity.feature_vector_creation_utilities import create_has_sentiments_present_vector, create_word2vec_present_vector
+from src.viewpointdiversity.feature_vector_creation_utilities import create_has_sentiments_present_vector
+from src.viewpointdiversity.feature_vector_creation_utilities import create_word2vec_present_vector
 
 
 class FeatureVectorCreationUtilitiesTest(unittest.TestCase):
