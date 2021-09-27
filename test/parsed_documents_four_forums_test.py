@@ -1,8 +1,7 @@
 import re
 import unittest
-import numpy as np
 import configparser
-from src.viewpointdiversity import ParsedDocumentsFourForums
+from src.viewpointdiversitydetection import ParsedDocumentsFourForums
 
 
 class ParsedDocumentFourForumTest(unittest.TestCase):
@@ -29,8 +28,8 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
         database = 'fourforums'
 
         with self.assertRaises(ValueError):
-            pdo = ParsedDocumentsFourForums(dummy_filter, 'gun control', 'oppose strict gun control',
-                                            'prefers strict gun control', database, host, user, password)
+            ParsedDocumentsFourForums(dummy_filter, 'gun control', 'oppose strict gun control',
+                                      'prefers strict gun control', database, host, user, password)
 
     def test_invalid_topic(self):
         """
@@ -52,21 +51,21 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
 
         # an invalid topic, it should throw a value error
         with self.assertRaises(ValueError):
-            pdo = ParsedDocumentsFourForums(dummy_filter, 'invalid_topic', 'stance1', 'stance2',
-                                            database, host, user, password)
+            ParsedDocumentsFourForums(dummy_filter, 'invalid_topic', 'stance1', 'stance2',
+                                      database, host, user, password)
 
         # an invalid stance, should also throw a value error
         with self.assertRaises(ValueError):
-            pdo = ParsedDocumentsFourForums(dummy_filter, 'climate change', 'stance1', 'humans not responsible',
-                                            database, host, user, password)
+            ParsedDocumentsFourForums(dummy_filter, 'climate change', 'stance1', 'humans not responsible',
+                                      database, host, user, password)
         # an invalid stance, should also throw a value error
         with self.assertRaises(ValueError):
-            pdo = ParsedDocumentsFourForums(dummy_filter, 'climate change', 'humans responsible', 'stance2',
-                                            database, host, user, password)
+            ParsedDocumentsFourForums(dummy_filter, 'climate change', 'humans responsible', 'stance2',
+                                      database, host, user, password)
 
         # valid topic and stances, initialize without an error
-        pdo = ParsedDocumentsFourForums(dummy_filter, 'climate change', 'humans responsible', 'humans not responsible',
-                                        database, host, user, password)
+        ParsedDocumentsFourForums(dummy_filter, 'climate change', 'humans responsible', 'humans not responsible',
+                                  database, host, user, password)
 
     def test_print_annotated_posts_by_topic(self):
         """
@@ -181,4 +180,3 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

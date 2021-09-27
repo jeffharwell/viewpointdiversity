@@ -1,9 +1,9 @@
 from nltk import SnowballStemmer
 
-from ExtractedContextRanges import ExtractedContextRanges
-from TermContext import TermContext
-from TrackLeadingContext import TrackLeadingContext
-from TrackTrailingContext import TrackTrailingContext
+from viewpointdiversitydetection.ExtractedContextRanges import ExtractedContextRanges
+from viewpointdiversitydetection.TermContext import TermContext
+from viewpointdiversitydetection.TrackLeadingContext import TrackLeadingContext
+from viewpointdiversitydetection.TrackTrailingContext import TrackTrailingContext
 
 
 class ExtractContexts:

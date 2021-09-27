@@ -6,12 +6,13 @@ class Word2VecFeatureGenerator:
     def __init__(self, vector_model=False):
         if not vector_model:
             print("Leading Gensim Model")
-            # Load our Gensim Model
-            self.vector_model = api.load('fasttext-wiki-news-subwords-300')
+            # Load a small, fast, gensim word2vec pretrained model
+            self.vector_model = api.load('glove-twitter-25')
             print("Finished")
         else:
             self.vector_model = vector_model
 
+        self.vector_size = self.vector_model.vector_size
         self.include_zeros_in_averages = True
 
     def include_zeros_in_averages(self):
@@ -41,14 +42,14 @@ class Word2VecFeatureGenerator:
     def _get_vec(self, word):
         """
         Gets the normalized vector representation of a word form the model. If the word
-        is not in the model's vocabulary it returns an empty 300 element vector.
+        is not in the model's vocabulary it returns an empty element vector.
 
         :param word: string with the word to convert a vector.
         """
         if self._in_w2v_vocab(word):
             return self.vector_model.get_vector(word, norm=True)
         else:
-            return np.zeros(300)
+            return np.zeros(self.vector_size)
 
     def _average_vector(self, vectors):
         """
@@ -67,7 +68,7 @@ class Word2VecFeatureGenerator:
         else:
             # We are not including zero vectors in the average calculation, so compute the number of
             # non-zero vectors we have and then use that number in the denominator when computing the average
-            zero_vector = np.zeros(300)
+            zero_vector = np.zeros(self.vector_size)
             length_nonzero_vectors = sum([1 for i in vectors if not np.array_equal(i, zero_vector)])
             avg_of_all_vectors = np.divide(sum_of_all_vectors, length_nonzero_vectors)
 
@@ -89,7 +90,7 @@ class Word2VecFeatureGenerator:
                 vectors.append(self._get_vector_from_term_context(tc))
             if len(vectors) == 0:
                 # no contexts were extracted, use the zero vector
-                vector = np.zeros(300)
+                vector = np.zeros(self.vector_size)
             else:
                 vector = self._average_vector(vectors)
             doc_idx_to_vector[doc_idx] = vector
@@ -103,12 +104,12 @@ class Word2VecFeatureGenerator:
 
         :param term_context_obj: A Gensim vector model
         """
-        if not term_context_obj.hasContext():
+        if not term_context_obj.has_context():
             print("Warning: called getVector on an empty TermContext object")
 
         # Generate a flat list that contains a vector for every token in our context
         # note if the word is not in the vector models vocabulary we replace it with a
-        # vector of 300 zeros, np.zeros(300).
+        # vector of zeros, np.zeros(self.vector_size).
         vectors = []
         for context_structure in term_context_obj.contexts:
             leading_vectors = [self._get_vec(w) for w in context_structure['leading_tokens']]

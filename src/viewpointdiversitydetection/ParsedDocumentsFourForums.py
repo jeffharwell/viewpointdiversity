@@ -2,7 +2,7 @@ import pymysql
 import spacy
 import torch
 
-from CorpusAsStems import CorpusAsStems
+from viewpointdiversitydetection.CorpusAsStems import CorpusAsStems
 
 
 class ParsedDocumentsFourForums:
@@ -299,26 +299,6 @@ class ParsedDocumentsFourForums:
           and b.stance in (%s, %s)
           and topic_stance_votes_1 + topic_stance_votes_2 > 0;
         """
-        query_posts_stances_authors = """
-        select post.author_id, mturk_author_stance.discussion_id, post.text_id, topic_stance_id_1, 
-               a.stance stance_1, topic_stance_votes_1, topic_stance_id_2, b.stance stance_2,
-               topic_stance_votes_2, text.`text`,
-               if(topic_stance_votes_1 = 0 || topic_stance_votes_2 = 0, 'unanimous', 'split') consensus,
-               (topic_stance_votes_1 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_1,
-               (topic_stance_votes_2 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_2
-          from mturk_author_stance join topic_stance a on mturk_author_stance.topic_id = a.topic_id and 
-                                                  mturk_author_stance.topic_stance_id_1 = a.topic_stance_id 
-                                   join topic on topic.topic_id = a.topic_id
-                                   join topic_stance b on mturk_author_stance.topic_id = b.topic_id and 
-                                                  mturk_author_stance.topic_stance_id_2 = b.topic_stance_id
-                                   join post on post.discussion_id = mturk_author_stance.discussion_id and
-                                        post.author_id = mturk_author_stance.author_id 
-                                   join text on text.text_id = post.text_id 
-         where topic.topic = %s
-               and a.stance in (%s, %s)
-               and b.stance in (%s, %s)
-               and topic_stance_votes_1 + topic_stance_votes_2 > 1
-        """
 
         # Create our corpus
         connection = pymysql.connect(host=self.db_host, user=self.db_user, password=self.db_password, db=self.db_name,
@@ -351,8 +331,6 @@ class ParsedDocumentsFourForums:
                 all_posts = {self.stance1: 0, self.stance2: 0}
                 authors = {self.stance1: [], self.stance2: []}
                 post_length = {self.stance1: [], self.stance2: []}
-                #cursor.execute(query_posts_stances_authors, (self.topic_name, self.stance1, self.stance2,
-                #                                             self.stance1, self.stance2))
                 cursor.execute(self.query, (self.topic_name, self.stance1, self.stance2,
                                             self.stance1, self.stance2))
                 discussions = []

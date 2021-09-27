@@ -1,12 +1,9 @@
 import unittest
-import numpy as np
 import configparser
-
-from nltk import SnowballStemmer
 from nltk.corpus import stopwords
+from src.viewpointdiversitydetection import ParsedDocumentsFourForums
+from src.viewpointdiversitydetection import FindCharacteristicKeywords
 
-from src.viewpointdiversity import ParsedDocumentsFourForums
-from src.viewpointdiversity import FindCharacteristicKeywords
 
 
 class FindCharacteristicKeywordsTest(unittest.TestCase):
@@ -25,7 +22,6 @@ class FindCharacteristicKeywordsTest(unittest.TestCase):
         config.read('config.ini')
 
         def token_filter(spacy_token):
-            stemmer = SnowballStemmer(language='english')
             stop_words = set(stopwords.words('english'))
             stop_words = [s for s in stop_words if s not in ['no', 'nor', 'not']]  # I want negations
             if not spacy_token.is_space and not spacy_token.is_punct and spacy_token.text.lower() not in stop_words:
@@ -40,10 +36,9 @@ class FindCharacteristicKeywordsTest(unittest.TestCase):
 
         pdo = ParsedDocumentsFourForums(token_filter, 'gun control', 'opposes strict gun control',
                                         'prefers strict gun control', database, host, user, password)
-        terms = ['strict', 'gun', 'control']
 
         with self.assertRaises(ValueError):
-            fk = FindCharacteristicKeywords(pdo)
+            FindCharacteristicKeywords(pdo)
 
     def test_context_extraction_guns(self):
         """
@@ -53,7 +48,6 @@ class FindCharacteristicKeywordsTest(unittest.TestCase):
         config = configparser.ConfigParser()
         config.read('config.ini')
 
-        stemmer = SnowballStemmer(language='english')
         stop_words = set(stopwords.words('english'))
         stop_words = [s for s in stop_words if s not in ['no', 'nor', 'not']]  # I want negations
 
@@ -84,4 +78,3 @@ class FindCharacteristicKeywordsTest(unittest.TestCase):
         print("")
         print(f"Search Nouns {len(search_nouns)}: {search_nouns}")
         print(f"Related Nouns: {len(related_nouns)}: {related_nouns}")
-

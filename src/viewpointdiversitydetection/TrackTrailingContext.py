@@ -1,4 +1,4 @@
-from CollectXTokens import CollectXTokens
+from viewpointdiversitydetection.CollectXTokens import CollectXTokens
 
 
 class TrackTrailingContext:

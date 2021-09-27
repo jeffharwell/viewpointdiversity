@@ -1,7 +1,7 @@
 from nltk.sentiment import SentimentIntensityAnalyzer
 from textblob import TextBlob
 
-from TrackSentiment import TrackSentiment
+from viewpointdiversitydetection.TrackSentiment import TrackSentiment
 
 
 class SentimentFeatureGenerator:
