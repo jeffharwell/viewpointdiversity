@@ -1,5 +1,6 @@
 # Expose the Document Parser and the feature generators
 from .ParsedDocumentsFourForums import *
+from .RawCorpusFourForums import *
 from .FindCharacteristicKeywords import *
 from .SentimentFeatureGenerator import *
 from .Word2VecFeatureGenerator import *

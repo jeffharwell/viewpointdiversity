@@ -92,31 +92,6 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
 
         self.assertGreater(stats['gun control'], 100)
 
-    def test_print_raw_stats(self):
-        """
-        Not much of a test class. Just spits the raw corpus stats out.
-        """
-        # Read in our configuration from the config.ini file, it assumes we are
-        # using the config in the src tree
-        config = configparser.ConfigParser()
-        config.read('config.ini')
-
-        def dummy_filter(t):
-            return True
-
-        user = config['InternetArgumentCorpus']['username']
-        password = config['InternetArgumentCorpus']['password']
-        host = config['InternetArgumentCorpus']['host']
-        database = 'fourforums'
-
-        pdo = ParsedDocumentsFourForums(dummy_filter, 'gun control', 'opposes strict gun control',
-                                        'prefers strict gun control', database, host, user, password)
-        stats = pdo.print_raw_corpus_stats()
-        self.assertGreater(stats['discussion_topics_in_db'], 10)
-        self.assertGreater(stats['posts_in_db'], 10)
-        self.assertGreater(stats['authors_in_db'], 10)
-        self.assertGreater(stats['posts_with_usable_stance'], 10)
-
     def test_cant_set_limit_twice(self):
         """
         Because of the way we are doing query construction within the class, you can't set change query limit

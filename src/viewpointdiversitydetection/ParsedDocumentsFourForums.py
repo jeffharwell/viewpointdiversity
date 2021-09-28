@@ -12,7 +12,7 @@ class ParsedDocumentsFourForums:
 
     def __init__(self, token_filter, topic_name, stance1, stance2, db_name, db_host, db_user, db_password):
         """
-        Initialize the object, we actually grab and parse the document on initialization.
+        Initialize the object.
 
         :param token_filter: this is a closure which returns a boolean when passed a Spacy token, it
                              defines whether or not we are considering this token to be valid context.
@@ -258,184 +258,6 @@ class ParsedDocumentsFourForums:
 
         return stats
 
-    def print_raw_corpus_stats(self):
-        """
-        Print some stats about the corpus that we extract straight from the database.
-
-        :return: dictionary with some basic stats
-        """
-        query_num_discussions = """
-            select count(*) c
-              from discussion d join discussion_topic dt on dt.discussion_id = d.discussion_id 
-                                join topic t on t.topic_id = dt.topic_id
-             where t.topic = %s
-        """
-        query_num_posts = """
-            select count(*) c
-                from discussion d join discussion_topic dt on dt.discussion_id = d.discussion_id 
-                    join topic t on t.topic_id = dt.topic_id
-                    join post p on p.discussion_id = dt.discussion_id 
-                where t.topic = %s
-        """
-        query_num_authors = """
-            select count(distinct(p.author_id)) c
-                from discussion d join discussion_topic dt on dt.discussion_id = d.discussion_id 
-                    join topic t on t.topic_id = dt.topic_id
-                    join post p on p.discussion_id = d.discussion_id
-                where t.topic = %s
-        """
-        query_stance_coded_posts = """
-        select count(*) c 
-          from mturk_author_stance join topic_stance a on mturk_author_stance.topic_id = a.topic_id and 
-                                                  mturk_author_stance.topic_stance_id_1 = a.topic_stance_id 
-                                   join topic on topic.topic_id = a.topic_id
-                                   join topic_stance b on mturk_author_stance.topic_id = b.topic_id and 
-                                                  mturk_author_stance.topic_stance_id_2 = b.topic_stance_id
-                                   join post on post.discussion_id = mturk_author_stance.discussion_id and
-                                        post.author_id = mturk_author_stance.author_id 
-                                   join text on text.text_id = post.text_id 
-        where topic.topic = %s
-          and a.stance in (%s, %s)
-          and b.stance in (%s, %s)
-          and topic_stance_votes_1 + topic_stance_votes_2 > 0;
-        """
-
-        # Create our corpus
-        connection = pymysql.connect(host=self.db_host, user=self.db_user, password=self.db_password, db=self.db_name,
-                                     cursorclass=pymysql.cursors.SSDictCursor)
-        stats = {}
-
-        # First, Get all the documents and create the indexes
-        with connection:
-            with connection.cursor() as cursor:
-                # Number of discussions in the database for this topic
-                cursor.execute(query_num_discussions, (self.topic_name,))
-                results = cursor.fetchall()
-                stats['discussion_topics_in_db'] = results[0]['c']
-                # Number of posts in the database for this topic
-                cursor.execute(query_num_posts, (self.topic_name,))
-                results = cursor.fetchall()
-                stats['posts_in_db'] = results[0]['c']
-                # Number of authors
-                cursor.execute(query_num_authors, (self.topic_name,))
-                results = cursor.fetchall()
-                stats['authors_in_db'] = results[0]['c']
-                # Number of posts coded for the stances we are looking at
-                cursor.execute(query_stance_coded_posts, (self.topic_name, self.stance1, self.stance2,
-                                                          self.stance1, self.stance2))
-                results = cursor.fetchall()
-                stats['posts_with_stances'] = results[0]['c']
-                # Corpus Stats by Stance
-                unanimous_posts = {self.stance1: 0, self.stance2: 0}
-                split_posts = {self.stance1: 0, self.stance2: 0}
-                all_posts = {self.stance1: 0, self.stance2: 0}
-                authors = {self.stance1: [], self.stance2: []}
-                post_length = {self.stance1: [], self.stance2: []}
-                cursor.execute(self.query, (self.topic_name, self.stance1, self.stance2,
-                                            self.stance1, self.stance2))
-                discussions = []
-                discussion_length = {}
-                posts_considered = 0
-
-                result = cursor.fetchone()
-                while result:
-                    posts_considered = posts_considered + 1
-                    if result['percent_stance_1'] <= self.stance_agreement_cutoff or \
-                       result['percent_stance_2'] <= self.stance_agreement_cutoff:
-                        # Determine the stance of this row
-                        if result['percent_stance_1'] > result['percent_stance_2']:
-                            result_stance = result['stance_1']
-                        else:
-                            result_stance = result['stance_2']
-
-                        # Populate the unanimous and split post counts
-                        if result['consensus'] == 'unanimous':
-                            unanimous_posts[result_stance] = unanimous_posts[result_stance] + 1
-                        if result['consensus'] == 'split':
-                            split_posts[result_stance] = split_posts[result_stance] + 1
-
-                        # Keep track of the total number of posts as well
-                        all_posts[result_stance] = all_posts[result_stance] + 1
-
-                        # Keep track of the number of authors who hold this stance
-                        if result['author_id'] not in authors[result_stance]:
-                            authors[result_stance].append(result['author_id'])
-
-                        # Discussion and Discussion Length
-                        if not result['discussion_id'] in discussions:
-                            discussions.append(result['discussion_id'])
-                            discussion_length[result['discussion_id']] = 1
-                        else:
-                            discussion_length[result['discussion_id']] = discussion_length[result['discussion_id']] + 1
-
-                        # Post Length
-                        length_of_post = len(result['text'].split(" "))
-                        post_length[result_stance].append(length_of_post)
-
-                    result = cursor.fetchone()
-
-        #
-        # Now compute the various stats and add then to our stats object
-        #
-        stats['stance_1_description'] = self.stance1
-        stats['stance_2_description'] = self.stance2
-        stats['stance_agreement_cutoff'] = self.stance_agreement_cutoff
-        stats['authors_with_usable_stances'] = len(authors[self.stance1]) + len(authors[self.stance2])
-        stats['authors_stance_one'] = len(authors[self.stance1])
-        stats['authors_stance_two'] = len(authors[self.stance2])
-
-        # Did we have any authors who switched stances on us between discussions
-        # & is the set intersection operator
-        authors_who_switched_stances = set(authors[self.stance1]) & set(authors[self.stance2])
-        stats['authors_who_switched_stances'] = len(authors_who_switched_stances)
-
-        if len(discussions) == 0:
-            print(posts_considered)
-            raise RuntimeError("No discussions with stance were found for topic %s" % self.topic_name)
-
-        if len(post_length[self.stance1]) == 0 or len(post_length[self.stance2]) == 0:
-            msg = f"No posts with a usable stance found for either stance '{self.stance1}' or '{self.stance2}'"
-            raise RuntimeError(msg)
-
-        # Number of discussions
-        stats['number_of_discussions_with_stance'] = len(discussions)
-        stats['avg_length_of_discussions_with_stance'] = sum([d for d in discussion_length.values()]) / len(discussions)
-
-        # How many posts have a consensus stance
-        stats['posts_unanimous_stance_one'] = unanimous_posts[self.stance1]
-        stats['posts_unanimous_stance_two'] = unanimous_posts[self.stance2]
-        stats['posts_unanimous_total'] = unanimous_posts[self.stance1] + unanimous_posts[self.stance2]
-
-        # How many posts have a split stance
-        stats['posts_split_stance_one'] = split_posts[self.stance1]
-        stats['posts_split_stance_two'] = split_posts[self.stance2]
-        stats['posts_split_total'] = split_posts[self.stance1] + split_posts[self.stance2]
-
-        stats['posts_with_usable_stance'] = stats['posts_unanimous_total'] + stats['posts_split_total']
-
-        total_post_len_s1 = sum(post_length[self.stance1])
-        total_post_len_s2 = sum(post_length[self.stance2])
-        total_post_len = total_post_len_s1 + total_post_len_s2
-        num_post_s1 = len(post_length[self.stance1])
-        num_post_s2 = len(post_length[self.stance2])
-        total_num_post = num_post_s1 + num_post_s2
-        stats['avg_length_of_post_stance_one'] = round(total_post_len_s1 / num_post_s1, 4)
-        stats['avg_length_of_post_stance_two'] = round(total_post_len_s2 / num_post_s2, 4)
-        stats['avg_length_of_post_with_stance'] = round(total_post_len / total_num_post, 4)
-        stats['min_length_of_post_with_stance'] = min(post_length[self.stance1] + post_length[self.stance2])
-        stats['max_length_of_post_with_stance'] = max(post_length[self.stance1] + post_length[self.stance2])
-
-        longest_key_string = max([len(k) for k in stats.keys()])
-        longest_value_string = max([len(str(v)) for v in stats.values()])
-
-        title = self.topic_name + " Topic Stats"
-        print(f"| {title.ljust(longest_key_string)} ||")
-        print("| "+"-"*longest_key_string + " | " + "-"*longest_value_string + " |")
-        for label, value in stats.items():
-            print(f"| {label.ljust(longest_key_string)} | {str(value).ljust(longest_value_string)} |")
-
-        return stats
-
     def print_corpus_stats(self):
         """
         Prints some statistics from the corpus we just retrieved.
@@ -444,7 +266,8 @@ class ParsedDocumentsFourForums:
         print("These posts are from %s distinct authors" % len(set(self.authors_stance1 + self.authors_stance2)))
         first_key = list(self.data_structure.keys())[0]
         print("\nHere is our first post from key %s" % first_key)
-        print(self.data_structure[first_key])
+        print("First 100 Char of Post: ", self.data_structure[first_key][0][0:100])
+        print("Stance: ", self.data_structure[first_key][1])
 
         print(f"Inter-annotator agreement cutoff set at {self.stance_agreement_cutoff}")
         msg = "{} documents were rejected because inter-annotator agreement was below the cutoff."

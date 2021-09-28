@@ -46,11 +46,10 @@ pre-trained word2vec model.
                                     'humans responsible', database, host, user, password)
     pdo.set_result_limit(500)
     pdo.process_corpus()
-    search_terms = ['human', 'responsible', 'climate', 'change']
+    search_terms = ['human', 'responsibleb', 'climate', 'change']
     
     fk = vdd.FindCharacteristicKeywords(pdo)
     print("\n-- Extracted nouns related to the search terms")
-    related_terms = fk.get_unique_nouns_from_term_context(search_terms)
     
     #
     # Now Create the Feature Vector Object
