@@ -41,16 +41,16 @@ def print_top_n_stats(answers, predictions, avg_rate_in_data, positive_class_lab
         print("\nSensitivity: Undefined")
     else:
         sensitivity = tp / (tp + fn)  # how many positive results did it find out of all the positive results available
-        print("\nSensitivity: ", sensitivity)
+        print(f"\nSensitivity: {sensitivity:.2f}")
 
     if (tn + fp) == 0:
         print("Specificity: Undefined")
     else:
         specificity = tn / (
                 tn + fp)  # how many negative results did it find out of all the negative results available
-        print("Specificity: ", specificity)
+        print(f"Specificity: {specificity:.2f}")
 
-    print("Balanced Accuracy:", metrics.balanced_accuracy_score(answers, predictions))
+    print(f"Balanced Accuracy: {metrics.balanced_accuracy_score(answers, predictions):.2f}")
 
     # lift
     lift = (sum([1 for a in answers if a == positive_class_label]) / len(answers)) / avg_rate_in_data
@@ -84,24 +84,24 @@ def print_combined_stats(answers, predictions, avg_rate_in_data_by_class, positi
         print("\nSensitivity: Undefined")
     else:
         sensitivity = tp / (tp + fn)  # how many positive results did it find out of all the positive results available
-        print("\nSensitivity: ", sensitivity)
+        print(f"\nSensitivity: {sensitivity:.2f}")
 
     if (tn + fp) == 0:
         print("Specificity: Undefined")
     else:
         specificity = tn / (
                 tn + fp)  # how many negative results did it find out of all the negative results available
-        print("Specificity: ", specificity)
+        print(f"Specificity: {specificity:.2f}")
 
     print("Balanced Accuracy:", metrics.balanced_accuracy_score(answers, predictions))
 
     # lift
     for class_label, avg_rate_in_data in avg_rate_in_data_by_class.items():
         lift = (sum([1 for a in answers if a == class_label]) / len(answers)) / avg_rate_in_data
-        print("Lift for class %s: %.2f" % (class_label, lift))
+        print(f"Lift for class {class_label}: {lift:.2f}")
 
 
-def analyze_top_predictions(answers, predictions, probabilities, top_number):
+def analyze_top_predictions(answers, predictions, probabilities, top_number, class_1_label, class_2_label):
     """
     Analyze the top predictions of the model.
 
@@ -109,6 +109,8 @@ def analyze_top_predictions(answers, predictions, probabilities, top_number):
     :param predictions: numpy array of predictions
     :param probabilities: numpy array of arrays, each element in the array being a class proability
     :param top_number: the number of top performers to analyze
+    :param class_1_label: The label assigned to the second class
+    :param class_2_label: The label assigned to the second class
     """
     if top_number > len(answers):
         raise RuntimeError("Specified number of data points to analyze %s is greater then the number of samples %s" % (
@@ -130,84 +132,29 @@ def analyze_top_predictions(answers, predictions, probabilities, top_number):
                                     reverse=True)  # Highest prob of getting a 1 is at the beginning
 
     # Class 0 - Slice of top performers
-    answers_class_0 = [a[0] for a in sorted_data_zeros_first[0:top_number]]
-    predictions_class_0 = [a[1] for a in sorted_data_zeros_first[0:top_number]]
+    answers_class_1 = [a[0] for a in sorted_data_zeros_first[0:top_number]]
+    predictions_class_1 = [a[1] for a in sorted_data_zeros_first[0:top_number]]
 
     # Class 1 - Slice of top performers
-    answers_class_1 = [a[0] for a in sorted_data_ones_first[0:top_number]]
-    predictions_class_1 = [a[1] for a in sorted_data_ones_first[0:top_number]]
+    answers_class_2 = [a[0] for a in sorted_data_ones_first[0:top_number]]
+    predictions_class_2 = [a[1] for a in sorted_data_ones_first[0:top_number]]
 
     # Calculate our data data set statistics
-    total_count_class_0 = sum([1 for a in answers if a == 0])
-    total_count_class_1 = sum([1 for a in answers if a == 1])
-    total_percent_class_0 = total_count_class_0 / len(answers)
+    total_count_class_1 = sum([1 for a in answers if a == class_1_label])
+    total_count_class_2 = sum([1 for a in answers if a == class_2_label])
     total_percent_class_1 = total_count_class_1 / len(answers)
+    total_percent_class_2 = total_count_class_2 / len(answers)
 
-    print("#\n# For Class 0 the top (most probably positive) %s datapoints:\n#\n" % top_number)
-    print_top_n_stats(answers_class_0, predictions_class_0, total_percent_class_0, 0)
-    print("\n#\n# For Class 1 the bottom (most probably negative) %s datapoints:\n#\n" % top_number)
-    print_top_n_stats(answers_class_1, predictions_class_1, total_percent_class_1, 0)
+    print(f"#\n# For Class {class_1_label} the top (most probably positive) {top_number} datapoints:\n#\n")
+    print_top_n_stats(answers_class_1, predictions_class_1, total_percent_class_1, class_1_label)
+    print(f"\n#\n# For Class {class_2_label} the bottom (most probably negative) {top_number} datapoints:\n#\n")
+    print_top_n_stats(answers_class_2, predictions_class_2, total_percent_class_2, class_1_label)
     print("\n#\n# Combined Confusion Matrix:")
-    print("# The %s data points predicted most likely to be class 0" % top_number)
-    print("# and the %s datapoints predicted most likely to be class 1." % top_number)
+    print(f"# The {top_number} data points predicted most likely to be class {class_1_label}")
+    print(f"# and the {top_number} datapoints predicted most likely to be class {class_2_label}.")
     print("#\n")
-    print_combined_stats(answers_class_0 + answers_class_1, predictions_class_0 + predictions_class_1,
-                         {0: total_percent_class_0, 1: total_percent_class_1}, 0)
-
-
-# Analyze the top predictions of the model.
-#
-# answers = numpy array of answers
-# predictions = numpy array of predictions
-# probablities = numpy array of arrays, each element in the array being a class proability
-# cut_off = analyze all results with probability greater than the cut_off value
-def analyze_top_percentage(answers, predictions, probabilities, cut_off):
-    if cut_off > 1 or cut_off <= 0:
-        raise RuntimeError("Cutoff percentage must be a decimal between 0 and 1")
-
-    # Unpack our probabilities
-    prob1 = [p[0] for p in probabilities]
-    prob2 = [p[1] for p in probabilities]
-
-    # Create a new data structure so that we can sort
-    all_data = list(zip(answers, predictions, prob1, prob2))
-
-    # Sort by probability one, this will correspond to our first class, stance 0, oppose
-    sorted_data_zeros_first = sorted(all_data, key=itemgetter(2),
-                                     reverse=True)  # Highest prob of getting a 0 is sorted first
-
-    # Sort by probability two, this will correspond to our second class, stance 1, support
-    sorted_data_ones_first = sorted(all_data, key=itemgetter(3),
-                                    reverse=True)  # Highest prob of getting a 1 is at the beginning
-
-    # Class 0 - Slice of top performers
-    answers_class_0 = [a[0] for a in sorted_data_zeros_first if a[2] > cut_off]
-    predictions_class_0 = [a[1] for a in sorted_data_zeros_first if a[2] > cut_off]
-
-    # Class 1 - Slice of top performers
-    answers_class_1 = [a[0] for a in sorted_data_ones_first if a[3] > cut_off]
-    predictions_class_1 = [a[1] for a in sorted_data_ones_first if a[3] > cut_off]
-
-    # Calculate our data data set statistics
-    total_count_class_0 = sum([1 for a in answers if a == 0])
-    total_count_class_1 = sum([1 for a in answers if a == 1])
-    total_percent_class_0 = total_count_class_0 / len(answers)
-    total_percent_class_1 = total_count_class_1 / len(answers)
-
-    print("\nAnalyzing Probabilities > %s" % cut_off)
-    print("Cutoff at %s results in:" % cut_off)
-    print("     %s data points for class 0" % len(answers_class_0))
-    print("     %s data points for class 1.\n" % len(answers_class_1))
-    print("#\n# For Class 0:\n#\n")
-    print_top_n_stats(answers_class_0, predictions_class_0, total_percent_class_0, 0)
-    print("\n\n#\n# For Class 1:\n#\n")
-    print_top_n_stats(answers_class_1, predictions_class_1, total_percent_class_1, 1)
-    print("\n#\n# Combined Confusion Matrix:")
-    print("# The %s data points predicted most likely to be class 0" % len(answers_class_0))
-    print("# and the %s datapoints predicted most likely to be class 1." % len(answers_class_1))
-    print("#\n")
-    print_combined_stats(answers_class_0 + answers_class_1, predictions_class_0 + predictions_class_1,
-                         {0: total_percent_class_0, 1: total_percent_class_1}, 0)
+    print_combined_stats(answers_class_1 + answers_class_2, predictions_class_1 + predictions_class_2,
+                         {class_1_label: total_percent_class_1, class_2_label: total_percent_class_2}, class_1_label)
 
 
 def custom_metric(estimator, data, answers):

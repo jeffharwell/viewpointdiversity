@@ -28,7 +28,7 @@ class TrackTrailingContext:
 
         :param token: a Spacy token to collect
         :type token: class 'spacy.tokens.token.Token'
-        :param token_index: integer representing where the token was in the originial document
+        :param token_index: integer representing where the token was in the original document
         """
         # print("Collect called, we have %s collectors." % len(self.collectors))
 

@@ -21,8 +21,8 @@ class RawCorpusFourForums:
         self.db_host = db_host
         self.db_user = db_user
 
-        self.stance1 = None
-        self.stance2 = None
+        self.stance_a = None
+        self.stance_b = None
         # This is how much agreement the annotators need to have before
         # we consider a post to have a certain stance. A value of .2 means that
         # 80% of the annotators need to agree for us to use that post and tag it
@@ -82,8 +82,8 @@ class RawCorpusFourForums:
         :return: dictionary with some basic stats
         """
 
-        if not self.stance1 or not self.stance2:
-            raise RuntimeError("You must define stance1 and stance2 before generating corpus statistics.")
+        if not self.stance_a or not self.stance_b:
+            raise RuntimeError("You must define stance_a and stance_b before generating corpus statistics.")
 
         query_num_discussions = """
             select count(*) c
@@ -142,18 +142,18 @@ class RawCorpusFourForums:
                 results = cursor.fetchall()
                 stats['authors_in_db'] = results[0]['c']
                 # Number of posts coded for the stances we are looking at
-                cursor.execute(query_stance_coded_posts, (self.topic_name, self.stance1, self.stance2,
-                                                          self.stance1, self.stance2))
+                cursor.execute(query_stance_coded_posts, (self.topic_name, self.stance_a, self.stance_b,
+                                                          self.stance_a, self.stance_b))
                 results = cursor.fetchall()
                 stats['posts_with_stances'] = results[0]['c']
                 # Corpus Stats by Stance
-                unanimous_posts = {self.stance1: 0, self.stance2: 0}
-                split_posts = {self.stance1: 0, self.stance2: 0}
-                all_posts = {self.stance1: 0, self.stance2: 0}
-                authors = {self.stance1: [], self.stance2: []}
-                post_length = {self.stance1: [], self.stance2: []}
-                cursor.execute(self.query, (self.topic_name, self.stance1, self.stance2,
-                                            self.stance1, self.stance2))
+                unanimous_posts = {self.stance_a: 0, self.stance_b: 0}
+                split_posts = {self.stance_a: 0, self.stance_b: 0}
+                all_posts = {self.stance_a: 0, self.stance_b: 0}
+                authors = {self.stance_a: [], self.stance_b: []}
+                post_length = {self.stance_a: [], self.stance_b: []}
+                cursor.execute(self.query, (self.topic_name, self.stance_a, self.stance_b,
+                                            self.stance_a, self.stance_b))
                 discussions = []
                 discussion_length = {}
                 posts_considered = 0
@@ -198,24 +198,24 @@ class RawCorpusFourForums:
         #
         # Now compute the various stats and add then to our stats object
         #
-        stats['stance_1_description'] = self.stance1
-        stats['stance_2_description'] = self.stance2
+        stats['stance_a_description'] = self.stance_a
+        stats['stance_b_description'] = self.stance_b
         stats['stance_agreement_cutoff'] = self.stance_agreement_cutoff
-        stats['authors_with_usable_stances'] = len(authors[self.stance1]) + len(authors[self.stance2])
-        stats['authors_stance_one'] = len(authors[self.stance1])
-        stats['authors_stance_two'] = len(authors[self.stance2])
+        stats['authors_with_usable_stances'] = len(authors[self.stance_a]) + len(authors[self.stance_b])
+        stats['authors_stance_a'] = len(authors[self.stance_a])
+        stats['authors_stance_b'] = len(authors[self.stance_b])
 
         # Did we have any authors who switched stances on us between discussions
         # & is the set intersection operator
-        authors_who_switched_stances = set(authors[self.stance1]) & set(authors[self.stance2])
+        authors_who_switched_stances = set(authors[self.stance_a]) & set(authors[self.stance_b])
         stats['authors_who_switched_stances'] = len(authors_who_switched_stances)
 
         if len(discussions) == 0:
             print(posts_considered)
             raise RuntimeError("No discussions with stance were found for topic %s" % self.topic_name)
 
-        if len(post_length[self.stance1]) == 0 or len(post_length[self.stance2]) == 0:
-            msg = f"No posts with a usable stance found for either stance '{self.stance1}' or '{self.stance2}'"
+        if len(post_length[self.stance_a]) == 0 or len(post_length[self.stance_b]) == 0:
+            msg = f"No posts with a usable stance found for either stance '{self.stance_a}' or '{self.stance_b}'"
             raise RuntimeError(msg)
 
         # Number of discussions
@@ -223,28 +223,28 @@ class RawCorpusFourForums:
         stats['avg_length_of_discussions_with_stance'] = sum([d for d in discussion_length.values()]) / len(discussions)
 
         # How many posts have a consensus stance
-        stats['posts_unanimous_stance_one'] = unanimous_posts[self.stance1]
-        stats['posts_unanimous_stance_two'] = unanimous_posts[self.stance2]
-        stats['posts_unanimous_total'] = unanimous_posts[self.stance1] + unanimous_posts[self.stance2]
+        stats['posts_unanimous_stance_a'] = unanimous_posts[self.stance_a]
+        stats['posts_unanimous_stance_b'] = unanimous_posts[self.stance_b]
+        stats['posts_unanimous_total'] = unanimous_posts[self.stance_a] + unanimous_posts[self.stance_b]
 
         # How many posts have a split stance
-        stats['posts_split_stance_one'] = split_posts[self.stance1]
-        stats['posts_split_stance_two'] = split_posts[self.stance2]
-        stats['posts_split_total'] = split_posts[self.stance1] + split_posts[self.stance2]
+        stats['posts_split_stance_a'] = split_posts[self.stance_a]
+        stats['posts_split_stance_b'] = split_posts[self.stance_b]
+        stats['posts_split_total'] = split_posts[self.stance_a] + split_posts[self.stance_b]
 
         stats['posts_with_usable_stance'] = stats['posts_unanimous_total'] + stats['posts_split_total']
 
-        total_post_len_s1 = sum(post_length[self.stance1])
-        total_post_len_s2 = sum(post_length[self.stance2])
+        total_post_len_s1 = sum(post_length[self.stance_a])
+        total_post_len_s2 = sum(post_length[self.stance_b])
         total_post_len = total_post_len_s1 + total_post_len_s2
-        num_post_s1 = len(post_length[self.stance1])
-        num_post_s2 = len(post_length[self.stance2])
+        num_post_s1 = len(post_length[self.stance_a])
+        num_post_s2 = len(post_length[self.stance_b])
         total_num_post = num_post_s1 + num_post_s2
-        stats['avg_length_of_post_stance_one'] = round(total_post_len_s1 / num_post_s1, 4)
-        stats['avg_length_of_post_stance_two'] = round(total_post_len_s2 / num_post_s2, 4)
+        stats['avg_length_of_post_stance_a'] = round(total_post_len_s1 / num_post_s1, 4)
+        stats['avg_length_of_post_stance_b'] = round(total_post_len_s2 / num_post_s2, 4)
         stats['avg_length_of_post_with_stance'] = round(total_post_len / total_num_post, 4)
-        stats['min_length_of_post_with_stance'] = min(post_length[self.stance1] + post_length[self.stance2])
-        stats['max_length_of_post_with_stance'] = max(post_length[self.stance1] + post_length[self.stance2])
+        stats['min_length_of_post_with_stance'] = min(post_length[self.stance_a] + post_length[self.stance_b])
+        stats['max_length_of_post_with_stance'] = max(post_length[self.stance_a] + post_length[self.stance_b])
 
         longest_key_string = max([len(k) for k in stats.keys()])
         longest_value_string = max([len(str(v)) for v in stats.values()])

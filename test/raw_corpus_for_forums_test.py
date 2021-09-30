@@ -20,8 +20,8 @@ class RawCorpusFourForumTest(unittest.TestCase):
         database = 'fourforums'
 
         rc = RawCorpusFourForums('gun control', database, host, user, password)
-        rc.stance1 = 'opposes strict gun control'
-        rc.stance2 = 'prefers strict gun control'
+        rc.stance_a = 'opposes strict gun control'
+        rc.stance_b = 'prefers strict gun control'
         stats = rc.print_stats()
         self.assertGreater(stats['discussion_topics_in_db'], 10)
         self.assertGreater(stats['posts_in_db'], 10)

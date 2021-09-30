@@ -1,6 +1,6 @@
 class TrackLeadingContext:
     """
-    Class that remembers the last x takens it has collected. Upon calling the rememberLastTokens method
+    Class that remembers the last x tokens it has collected. Upon calling the rememberLastTokens method
     it will save off the the last 'number_of_tokens' tokens along with an identifying trigger. It can then
     return all of the saved lists along with the identifying triggers.
 
@@ -25,7 +25,7 @@ class TrackLeadingContext:
         Collect a new token, if we now have too many then drop the oldest token.
 
         :param token: a Spacy token
-        :param token_index: integer representing where the token was in the originial document
+        :param token_index: integer representing where the token was in the original document
         """
         self.tokens.append(token)
         self.token_indexes.append(token_index)

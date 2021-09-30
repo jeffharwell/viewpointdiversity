@@ -51,16 +51,16 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
 
         # an invalid topic, it should throw a value error
         with self.assertRaises(ValueError):
-            ParsedDocumentsFourForums(dummy_filter, 'invalid_topic', 'stance1', 'stance2',
+            ParsedDocumentsFourForums(dummy_filter, 'invalid_topic', 'stance_a', 'stance_b',
                                       database, host, user, password)
 
         # an invalid stance, should also throw a value error
         with self.assertRaises(ValueError):
-            ParsedDocumentsFourForums(dummy_filter, 'climate change', 'stance1', 'humans not responsible',
+            ParsedDocumentsFourForums(dummy_filter, 'climate change', 'stance_a', 'humans not responsible',
                                       database, host, user, password)
         # an invalid stance, should also throw a value error
         with self.assertRaises(ValueError):
-            ParsedDocumentsFourForums(dummy_filter, 'climate change', 'humans responsible', 'stance2',
+            ParsedDocumentsFourForums(dummy_filter, 'climate change', 'humans responsible', 'stance_b',
                                       database, host, user, password)
 
         # valid topic and stances, initialize without an error
@@ -151,6 +151,32 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
 
         pdo.process_corpus()
         self.assertTrue(len(pdo.text) <= limit)
+
+    def test_get_stance_labels(self):
+        """
+        Test the ability of the ParsedDocumentsFourForumns class to limit the number of texts used when parsing.
+        """
+        # Read in our configuration from the config.ini file, it assumes we are
+        # using the config in the src tree
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+
+        def dummy_filter(t):
+            return True
+
+        user = config['InternetArgumentCorpus']['username']
+        password = config['InternetArgumentCorpus']['password']
+        host = config['InternetArgumentCorpus']['host']
+        database = 'fourforums'
+
+        pdo = ParsedDocumentsFourForums(dummy_filter, 'gun control', 'opposes strict gun control',
+                                        'prefers strict gun control', database, host, user, password)
+
+        with self.assertRaises(ValueError):
+            pdo.get_stance_label('invalid stance name')
+
+        self.assertTrue(pdo.get_stance_label('opposes strict gun control') == 'a')
+        self.assertTrue(pdo.get_stance_label('prefers strict gun control') == 'b')
 
 
 if __name__ == '__main__':

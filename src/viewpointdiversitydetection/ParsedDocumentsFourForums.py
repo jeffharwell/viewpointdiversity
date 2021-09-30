@@ -10,7 +10,7 @@ class ParsedDocumentsFourForums:
     Class to retrieve and parse corpora from the FourForums data within the Internet Argument Corpus 2.0
     """
 
-    def __init__(self, token_filter, topic_name, stance1, stance2, db_name, db_host, db_user, db_password):
+    def __init__(self, token_filter, topic_name, stance_a, stance_b, db_name, db_host, db_user, db_password):
         """
         Initialize the object.
 
@@ -20,19 +20,19 @@ class ParsedDocumentsFourForums:
                              constructor, which uses it to filter out tokens we are not stemming and
                              including in the doc and stem indexes.
         :param topic_name: The name of the topic we are parsing from the FourForums data
-        :param stance1: The first stance to consider
-        :param stance2: The second stance to consider
+        :param stance_a: The first stance to consider
+        :param stance_b: The second stance to consider
         :param db_name: The name of the database to connect to
         :param db_host: The server hosting the database
         :param db_user: The user to use when connecting to the database
         :param db_password: The password to use when connecting to the database
         """
         self.topic_name = topic_name
-        self.stance1 = stance1
-        self.stance2 = stance2
-        # Our target classes will be integers 1, and 2. This structure maps those target classes
+        self.stance_a = stance_a
+        self.stance_b = stance_b
+        # Our target classes will be integers 'a', and 'b'. This structure maps those target classes
         # to their descriptions
-        self.stance_target_id_by_desc = {self.stance1: 1, self.stance2: 2}
+        self.stance_target_id_by_desc = {self.stance_a: 'a', self.stance_b: 'b'}
         # This is how much agreement the annotators need to have before
         # we consider a post to have a certain stance. A value of .2 means that
         # 80% of the annotators need to agree for us to use that post and tag it
@@ -41,30 +41,12 @@ class ParsedDocumentsFourForums:
         self.num_documents_under_cutoff = 0
 
         self.query = """
-            select post.author_id, mturk_author_stance.discussion_id, post.text_id, topic_stance_id_1, 
-               a.stance, topic_stance_votes_1, topic_stance_id_2, b.stance, topic_stance_votes_2, text
-          from mturk_author_stance join topic_stance a on mturk_author_stance.topic_id = a.topic_id and 
-                                                          mturk_author_stance.topic_stance_id_1 = a.topic_stance_id 
-                                   join topic on topic.topic_id = a.topic_id
-                                   join topic_stance b on mturk_author_stance.topic_id = b.topic_id and 
-                                                          mturk_author_stance.topic_stance_id_2 = b.topic_stance_id
-                                   join post on post.discussion_id = mturk_author_stance.discussion_id and
-                                                post.author_id = mturk_author_stance.author_id 
-                                   join text on text.text_id = post.text_id 
-        where topic = %s
-          -- Unanimous consent by the turkers
-          and (topic_stance_votes_1 = 0 or topic_stance_votes_2 = 0)
-          -- but there were some votes (there are some rows where both columns are zeros, no votes
-          and (topic_stance_votes_1 + topic_stance_votes_2) > 1
-          -- limit 200;
-        """
-        self.query = """
                 select post.author_id, mturk_author_stance.discussion_id, post.text_id, topic_stance_id_1, 
-               a.stance stance_1, topic_stance_votes_1, topic_stance_id_2, b.stance stance_2,
+               a.stance stance_a, topic_stance_votes_1, topic_stance_id_2, b.stance stance_b,
                topic_stance_votes_2, text.`text`,
                if(topic_stance_votes_1 = 0 || topic_stance_votes_2 = 0, 'unanimous', 'split') consensus,
-               (topic_stance_votes_1 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_1,
-               (topic_stance_votes_2 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_2
+               (topic_stance_votes_1 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_a,
+               (topic_stance_votes_2 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_b
           from mturk_author_stance join topic_stance a on mturk_author_stance.topic_id = a.topic_id and 
                                                   mturk_author_stance.topic_stance_id_1 = a.topic_stance_id 
                                    join topic on topic.topic_id = a.topic_id
@@ -96,7 +78,7 @@ class ParsedDocumentsFourForums:
         self.data_structure = {}
         self.authors_stance1 = []
         self.authors_stance2 = []
-        self.authors_stance_by_desc = {self.stance1: self.authors_stance1, self.stance2: self.authors_stance2}
+        self.authors_stance_by_desc = {self.stance_a: self.authors_stance1, self.stance_b: self.authors_stance2}
         self.text = list()
         self.target = list()
         self.all_docs = []
@@ -110,10 +92,22 @@ class ParsedDocumentsFourForums:
 
         # Validate the Stance
         self.stances = self._get_valid_stances()
-        if stance1 not in self.stances:
-            raise ValueError("%s is not a valid stance for topic %s" % (stance1, topic_name))
-        if stance2 not in self.stances:
-            raise ValueError("%s is not a valid stance for topic %s" % (stance2, topic_name))
+        if stance_a not in self.stances:
+            raise ValueError("%s is not a valid stance for topic %s" % (stance_a, topic_name))
+        if stance_b not in self.stances:
+            raise ValueError("%s is not a valid stance for topic %s" % (stance_b, topic_name))
+
+    def get_stance_label(self, stance_name):
+        """
+        Return the label being used for the given stance.
+
+        :param stance_name: string containing the stance description
+        :return:
+        """
+        try:
+            return self.stance_target_id_by_desc[stance_name]
+        except KeyError as e:
+            raise ValueError(f"{stance_name} is not a valid stance for this corpus.")
 
     def set_result_limit(self, result_limit):
         """
@@ -228,11 +222,11 @@ class ParsedDocumentsFourForums:
         query = """
         select count(distinct(text_id)) as num_posts, topic from ( -- sub select a
             select post.author_id, mturk_author_stance.discussion_id, post.text_id, topic.topic, topic_stance_id_1, 
-                   a.stance stance_1, topic_stance_votes_1, topic_stance_id_2, b.stance stance_2, 
+                   a.stance stance_a, topic_stance_votes_1, topic_stance_id_2, b.stance stance_b, 
                    topic_stance_votes_2, text.`text`,
                    if(topic_stance_votes_1 = 0 || topic_stance_votes_2 = 0, 'unanimous', 'split') consensus,
-                   (topic_stance_votes_1 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_1,
-                   (topic_stance_votes_2 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_2
+                   (topic_stance_votes_1 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_a,
+                   (topic_stance_votes_2 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_b
             from mturk_author_stance join topic_stance a on mturk_author_stance.topic_id = a.topic_id and 
                                           mturk_author_stance.topic_stance_id_1 = a.topic_stance_id 
                                      join topic on topic.topic_id = a.topic_id
@@ -307,25 +301,25 @@ class ParsedDocumentsFourForums:
         with connection:
             with connection.cursor() as cursor:
                 # cursor.execute(self.query, (self.topic_name,))
-                cursor.execute(self.query, (self.topic_name, self.stance1, self.stance2,
-                                            self.stance1, self.stance2))
+                cursor.execute(self.query, (self.topic_name, self.stance_a, self.stance_b,
+                                            self.stance_a, self.stance_b))
                 result = cursor.fetchone()
                 while result is not None:
                     # implement the cutoff
-                    if result['percent_stance_1'] <= self.stance_agreement_cutoff or \
-                       result['percent_stance_2'] <= self.stance_agreement_cutoff:
+                    if result['percent_stance_a'] <= self.stance_agreement_cutoff or \
+                       result['percent_stance_b'] <= self.stance_agreement_cutoff:
                         
                         author = result['author_id']
                         text = result['text']
     
                         if result['topic_stance_votes_1'] > result['topic_stance_votes_2']:
-                            stance_target_id = self.stance_target_id_by_desc[result['stance_1']]
-                            authors_stance = self.authors_stance_by_desc[result['stance_1']]
+                            stance_target_id = self.stance_target_id_by_desc[result['stance_a']]
+                            authors_stance = self.authors_stance_by_desc[result['stance_a']]
                             if author not in authors_stance:
                                 authors_stance.append(author)
                         else:
-                            stance_target_id = self.stance_target_id_by_desc[result['stance_2']]
-                            authors_stance = self.authors_stance_by_desc[result['stance_2']]
+                            stance_target_id = self.stance_target_id_by_desc[result['stance_b']]
+                            authors_stance = self.authors_stance_by_desc[result['stance_b']]
                             if author not in authors_stance:
                                 authors_stance.append(author)
     
