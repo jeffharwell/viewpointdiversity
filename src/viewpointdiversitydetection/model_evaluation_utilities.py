@@ -2,6 +2,7 @@ from operator import itemgetter
 
 import numpy
 from sklearn import metrics
+from sklearn.metrics import confusion_matrix
 
 
 def print_top_n_stats(answers, predictions, avg_rate_in_data, positive_class_label):
@@ -15,7 +16,7 @@ def print_top_n_stats(answers, predictions, avg_rate_in_data, positive_class_lab
                                  This controls what class we consider positive, and put in the upper left quadrant
                                  of the confusion matrix
     """
-    print("Printing top stats, positive class label = ", positive_class_label)
+    print(f"Positive class label: '{positive_class_label}'")
     # Calculate our true positives, false negatives, true negatives, and false positives
     tp = sum([1 if answers[i] == predictions[i] else 0 for i in range(0, len(predictions)) if
               predictions[i] == positive_class_label])
@@ -41,14 +42,19 @@ def print_top_n_stats(answers, predictions, avg_rate_in_data, positive_class_lab
         print("\nSensitivity: Undefined")
     else:
         sensitivity = tp / (tp + fn)  # how many positive results did it find out of all the positive results available
-        print(f"\nSensitivity: {sensitivity:.2f}")
+        print(f"\nSensitivity/TPR: {sensitivity:.2f}")
 
     if (tn + fp) == 0:
-        print("Specificity: Undefined")
+        print("Specificity/TNR: Undefined")
     else:
-        specificity = tn / (
-                tn + fp)  # how many negative results did it find out of all the negative results available
-        print(f"Specificity: {specificity:.2f}")
+        specificity = tn / (tn + fp)  # how many negative results did it find out of all the negative results available
+        print(f"Specificity/TNR: {specificity:.2f}")
+
+    if (tp + fp) == 0:
+        print("Precision: Undefined")
+    else:
+        precision = tp / (tp + fp)
+        print(f"Precision:       {precision:.2f}")
 
     print(f"Balanced Accuracy: {metrics.balanced_accuracy_score(answers, predictions):.2f}")
 
@@ -84,14 +90,13 @@ def print_combined_stats(answers, predictions, avg_rate_in_data_by_class, positi
         print("\nSensitivity: Undefined")
     else:
         sensitivity = tp / (tp + fn)  # how many positive results did it find out of all the positive results available
-        print(f"\nSensitivity: {sensitivity:.2f}")
+        print(f"\nSensitivity/TPR: {sensitivity:.2f}")
 
     if (tn + fp) == 0:
         print("Specificity: Undefined")
     else:
-        specificity = tn / (
-                tn + fp)  # how many negative results did it find out of all the negative results available
-        print(f"Specificity: {specificity:.2f}")
+        specificity = tn / (tn + fp)  # how many negative results did it find out of all the negative results available
+        print(f"Specificity/TNR: {specificity:.2f}")
 
     print("Balanced Accuracy:", metrics.balanced_accuracy_score(answers, predictions))
 
@@ -107,7 +112,7 @@ def analyze_top_predictions(answers, predictions, probabilities, top_number, cla
 
     :param answers: numpy array of answers
     :param predictions: numpy array of predictions
-    :param probabilities: numpy array of arrays, each element in the array being a class proability
+    :param probabilities: numpy array of arrays, each element in the array being a class probability
     :param top_number: the number of top performers to analyze
     :param class_1_label: The label assigned to the second class
     :param class_2_label: The label assigned to the second class
@@ -127,8 +132,10 @@ def analyze_top_predictions(answers, predictions, probabilities, top_number, cla
     sorted_data_zeros_first = sorted(all_data, key=itemgetter(2),
                                      reverse=True)  # Highest prob of getting a 0 is sorted first
 
+    reversed_data = all_data.copy()
+    reversed_data.reverse()
     # Sort by probability two, this will correspond to our second class, stance 1, support
-    sorted_data_ones_first = sorted(all_data, key=itemgetter(3),
+    sorted_data_ones_first = sorted(reversed_data, key=itemgetter(3),
                                     reverse=True)  # Highest prob of getting a 1 is at the beginning
 
     # Class 0 - Slice of top performers
@@ -145,10 +152,10 @@ def analyze_top_predictions(answers, predictions, probabilities, top_number, cla
     total_percent_class_1 = total_count_class_1 / len(answers)
     total_percent_class_2 = total_count_class_2 / len(answers)
 
-    print(f"#\n# For Class {class_1_label} the top (most probably positive) {top_number} datapoints:\n#\n")
+    print(f"#\n# For Class '{class_1_label}' the top (most probably positive) {top_number} datapoints:\n#\n")
     print_top_n_stats(answers_class_1, predictions_class_1, total_percent_class_1, class_1_label)
-    print(f"\n#\n# For Class {class_2_label} the bottom (most probably negative) {top_number} datapoints:\n#\n")
-    print_top_n_stats(answers_class_2, predictions_class_2, total_percent_class_2, class_1_label)
+    print(f"\n#\n# For Class '{class_2_label}' the bottom (most probably negative) {top_number} datapoints:\n#\n")
+    print_top_n_stats(answers_class_2, predictions_class_2, total_percent_class_2, class_2_label)
     print("\n#\n# Combined Confusion Matrix:")
     print(f"# The {top_number} data points predicted most likely to be class {class_1_label}")
     print(f"# and the {top_number} datapoints predicted most likely to be class {class_2_label}.")
@@ -157,41 +164,167 @@ def analyze_top_predictions(answers, predictions, probabilities, top_number, cla
                          {class_1_label: total_percent_class_1, class_2_label: total_percent_class_2}, class_1_label)
 
 
-def custom_metric(estimator, data, answers):
+def calculate_stats(answers, predictions, cm):
     """
-    Grid Search Custom Metric
+    Prints the Stats for a given class label
 
-    Custom metric for use with a grid search, it rewards the ability to detect the minority class (True Negatives)
-    in the bottom 10% of the predictions when they are sorted by descending probability that they are a majority class
-    member. Note that the classifier does need to be able to output probabilities in order for this metric to work.
+    :param answers: an array of answers
+    :param predictions: an array of predictions
+    :param cm: confusion matrix of form [[TP, FN], [FP, TN]]
+    """
+    # confusion matrix looks like this [[ 23, 63], [ 40, 260]]
+    #                                  [[TP, FN], [FP, TN]]
+    tp = cm[0][0]
+    fn = cm[0][1]
+    fp = cm[1][0]
+    tn = cm[1][1]
 
-    Example of Use for an SVM Classifier
+    stats = {}
 
-        grid = GridSearchCV(svm.SVC(probability=True),
-                            param_grid={'C': [.00001, .001, 1, 10, 100],
-                            'gamma':[1e-4, 1e-2, 1, 10]},
-                            scoring=custom_metric,cv=5)
-        grid.fit(train_x, train_y)
-        print("Best Params: ",grid.best_params_)
-        best_c = grid.best_params_['C']
-        best_gamma = grid.best_params_['gamma']
+    # Sensitivity, specificity, and balanced accuracy
+    if (tp + fn) == 0:
+        tpr = 'Undefined'
+    else:
+        tpr_value = tp / (tp + fn)  # how many positive results did it find out of all the positive results available
+        tpr = f"{tpr_value:.2f}"
+    stats['TPR'] = tpr
 
-    :param estimator: A scikitlearn estimator
-    :param data: Data that we are classifying
-    :param answers: Correct answers for the data we are classifying
+    if (tn + fp) == 0:
+        print("Specificity/TNR: Undefined")
+        tnr = 'Undefined'
+    else:
+        tnr_value = tn / (tn + fp)  # how many negative results did it find out of all the negative results available
+        tnr = f"{tnr_value:.2f}"
+    stats['TNR'] = tnr
+
+    if (tp + fp) == 0:
+        ppv = 'Undefined'
+    else:
+        ppv_value = tp / (tp + fp)
+        ppv = f"{ppv_value:.2f}"
+    stats['PPV'] = ppv
+
+    if (tn + fn) == 0:
+        npv = 'Undefined'
+    else:
+        npv_value = tn / (tn + fn)
+        npv = f"{npv_value:.2f}"
+    stats['NPV'] = npv
+
+    bal_acc = f"{metrics.balanced_accuracy_score(answers, predictions):.2f}"
+    stats['Bal Acc'] = bal_acc
+
+    return stats
+
+
+def generate_markdown_table(corpus_name, search_terms, estimator_parameters, answers, predictions, probabilities, top_number,
+                            class_1_label, class_2_label):
+    """
+    Analyze the top predictions of the model.
+
+    :param corpus_name: String with the name of the dataset we are analyzing
+    :param search_terms: List of search terms used to create the context model
+    :param estimator_parameters: The hyperparameters used by the estimator
+    :param answers: numpy array of ans
+    :param predictions: numpy array of predictions
+    :param probabilities: numpy array of arrays, each element in the array being a class probability
+    :param top_number: the number of top performers to analyze
+    :param class_1_label: The label assigned to the second class
+    :param class_2_label: The label assigned to the second class
     """
 
-    def calculate_confusion_matrix(ans, pred, class_label):
-        # print(pred)
-        tp = sum([1 if ans[i] == pred[i] else 0 for i in range(0, len(pred)) if pred[i] == class_label])
-        fp = sum([1 if ans[i] != pred[i] else 0 for i in range(0, len(pred)) if pred[i] == class_label])
-        fn = sum([1 if ans[i] != pred[i] else 0 for i in range(0, len(pred)) if pred[i] != class_label])
-        tn = sum([1 if ans[i] == pred[i] else 0 for i in range(0, len(pred)) if pred[i] != class_label])
-        return tp, fp, tn, fn
+    #
+    # Sanitize Input
+    #
 
-    predictions = estimator.predict(data)
-    probabilities = estimator.predict_proba(data)
-    top_number = round(.1 * len(data))
+    if top_number > len(answers):
+        raise RuntimeError("Specified number of data points to analyze %s is greater then the number of samples %s" % (
+            top_number, len(answers)))
+
+    #
+    # Functions
+    #
+
+    def create_row_from_list(list_of_values):
+        return "| " + " | ".join(list_of_values) + " |"
+
+    def create_table_divider(hl):
+        """
+        Create the table header and divider
+
+        :param hl: list of header strings
+        :return:
+        """
+        dl = []
+        for h in hl:
+            dl.append("-" * len(h))
+        return dl
+
+    def create_parameter_string_from_list(params):
+        """
+        Takes a list of parameters and creates table cell content.
+
+        :param params: list of strings
+        :return: string with list combined with <br>
+        """
+
+        param_string = "<br>".join(params)
+        return param_string
+
+    def create_parameter_string(e_params):
+        """
+        Create the parameter string.
+
+        :param e_params: dictionary of estimator parameters and their corresponding values
+        :return:
+        """
+        param_list = []
+        for parameter, value in e_params.items():
+            if parameter == 'gamma':
+                param_list.append(f"$\gamma$={value}")
+            else:
+                param_list.append(f"{parameter}={value}")
+        param_string = "<br>".join(param_list)
+        return param_string
+
+    def create_confusion_matrix_string(cm):
+        """
+        Create a latex markdown string from the confusion matrix
+
+        :param cm: confusion matrix of form [[TP, FN], [FP, TN]]
+        :return: markdown string
+        """
+        # confusion matrix looks like this [[ 23, 63], [ 40, 260]]
+        #                                  [[TP, FN], [FP, TN]]
+        begin_matrix = '\\begin{bmatrix}'
+        end_matrix = '\end{bmatrix}'
+        TP = cm[0][0]
+        FN = cm[0][1]
+        FP = cm[1][0]
+        TN = cm[1][1]
+        s = f'${begin_matrix} {TP} & {FN} \\\\ {FP} & {TN} {end_matrix}$'
+        return s
+
+    def get_class_distribution(ans, class_1_l, class_2_l):
+        total = len(ans)
+        class_a = sum([1 for a in ans if a == class_1_l])
+        class_b = sum([1 for b in ans if b == class_2_l])
+        class_a_percent = class_a / total
+        class_b_percent = class_b / total
+        lines = [f"N = {total}", f"Class {class_1_l} = {class_a} ({class_a_percent:.2f})",
+                 f"Class {class_2_l} = {class_b} ({class_b_percent:.2f})"]
+        return "<br>".join(lines)
+
+    def create_stats_string(result_stats):
+        max_key_length = max([len(k) for k in result_stats.keys()])
+        lines = []
+        for key, value in result_stats.items():
+            lines.append(f"{key.ljust(max_key_length)} {value}")
+        return "<br>".join(lines)
+
+    #
+    # Analyze the Data
+    #
 
     # Unpack our probabilities
     prob1 = [p[0] for p in probabilities]
@@ -204,34 +337,50 @@ def custom_metric(estimator, data, answers):
     sorted_data_zeros_first = sorted(all_data, key=itemgetter(2),
                                      reverse=True)  # Highest prob of getting a 0 is sorted first
 
+    reversed_data = all_data.copy()
+    reversed_data.reverse()
     # Sort by probability two, this will correspond to our second class, stance 1, support
-    sorted_data_ones_first = sorted(all_data, key=itemgetter(3),
+    sorted_data_ones_first = sorted(reversed_data, key=itemgetter(3),
                                     reverse=True)  # Highest prob of getting a 1 is at the beginning
 
     # Class 0 - Slice of top performers
-    answers_class_0 = [a[0] for a in sorted_data_zeros_first[0:top_number]]
-    predictions_class_0 = [a[1] for a in sorted_data_zeros_first[0:top_number]]
+    answers_class_1 = [a[0] for a in sorted_data_zeros_first[0:top_number]]
+    predictions_class_1 = [a[1] for a in sorted_data_zeros_first[0:top_number]]
 
     # Class 1 - Slice of top performers
-    answers_class_1 = [a[0] for a in sorted_data_ones_first[0:top_number]]
-    predictions_class_1 = [a[1] for a in sorted_data_ones_first[0:top_number]]
+    answers_class_2 = [a[0] for a in sorted_data_ones_first[0:top_number]]
+    predictions_class_2 = [a[1] for a in sorted_data_ones_first[0:top_number]]
 
-    # Calculate our true positives, false negatives, true negatives, and false positives
-    # (tp_top, fp_top, tn_top, fn_top) = calculate_confusion_matrix(answers_class_0, predictions_class_0, 0)
-    (tp_bottom, fp_bottom, tn_bottom, fn_bottom) = calculate_confusion_matrix(answers_class_1, predictions_class_1, 0)
+    #
+    # Create the Table
+    #
 
-    if tn_bottom + fp_bottom == 0:
-        if tn_bottom == 0:
-            bottom_sensitivity = 0
-        else:
-            bottom_sensitivity = .9
-    else:
-        bottom_sensitivity = tn_bottom / (tn_bottom + fp_bottom)
+    header_list = ['Corpus', 'Search Terms', 'Parameters', 'Class Dist', 'Data Set', 'Top/Class a', 'Bottom/Class b', 'Combined', 'TB Stats']
+    divider_list = create_table_divider(header_list)
+    header_string = create_row_from_list(header_list)
+    divider_string = create_row_from_list(divider_list)
 
-    top_balanced_accuracy = metrics.balanced_accuracy_score(answers_class_0, predictions_class_0)
-    bottom_balanced_accuracy = metrics.balanced_accuracy_score(answers_class_1, predictions_class_1)
-    overall_balanced_accuracy = (top_balanced_accuracy + bottom_balanced_accuracy) / 2
+    # Full data set confusion matrix
+    full_data_set_cm = confusion_matrix(answers, predictions, labels=[class_1_label, class_2_label])
+    # Top and Bottom confusion Matrixes
+    top_cm = confusion_matrix(answers_class_1, predictions_class_1, labels=[class_1_label, class_2_label])
+    bottom_cm = confusion_matrix(answers_class_2, predictions_class_2, labels=[class_1_label, class_2_label])
+    # Combined Top and Bottom Confusion Matrix
+    tb_answers = answers_class_1 + answers_class_2
+    tb_predictions = predictions_class_1 + predictions_class_2
+    tb_cm = confusion_matrix(tb_answers, tb_predictions, labels=[class_1_label, class_2_label])
+    stats = calculate_stats(tb_answers, tb_predictions, tb_cm)
 
-    # We add a weight to balanced sensitivity. Overall accuracy is good, but sensitivity is more important in this case.
-    overall_metric = 2 * bottom_sensitivity + overall_balanced_accuracy
-    return overall_metric
+    # Build the markdown table cell by cell
+    cells = [corpus_name,
+             create_parameter_string_from_list(search_terms),
+             create_parameter_string(estimator_parameters),
+             get_class_distribution(answers, class_1_label, class_2_label),
+             create_confusion_matrix_string(full_data_set_cm),
+             create_confusion_matrix_string(top_cm),
+             create_confusion_matrix_string(bottom_cm),
+             create_confusion_matrix_string(tb_cm),
+             create_stats_string(stats)]
+
+    # Build and return the markdown string
+    return header_string + "\n" + divider_string + "\n" + create_row_from_list(cells)

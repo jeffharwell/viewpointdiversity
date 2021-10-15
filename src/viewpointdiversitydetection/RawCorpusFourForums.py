@@ -231,7 +231,7 @@ class RawCorpusFourForums:
         stats['posts_split_stance_a'] = split_posts[self.stance_a]
         stats['posts_split_stance_b'] = split_posts[self.stance_b]
         stats['posts_split_total'] = split_posts[self.stance_a] + split_posts[self.stance_b]
-
+        stats['inter-annotator_cutoff'] = self.stance_agreement_cutoff
         stats['posts_with_usable_stance'] = stats['posts_unanimous_total'] + stats['posts_split_total']
 
         total_post_len_s1 = sum(post_length[self.stance_a])

@@ -70,7 +70,11 @@ class Word2VecFeatureGenerator:
             # non-zero vectors we have and then use that number in the denominator when computing the average
             zero_vector = np.zeros(self.vector_size)
             length_nonzero_vectors = sum([1 for i in vectors if not np.array_equal(i, zero_vector)])
-            avg_of_all_vectors = np.divide(sum_of_all_vectors, length_nonzero_vectors)
+            if length_nonzero_vectors == 0:
+                # all features are 0, return the sum as the avg, since both are 0
+                avg_of_all_vectors = sum_of_all_vectors
+            else:
+                avg_of_all_vectors = np.divide(sum_of_all_vectors, length_nonzero_vectors)
 
         return avg_of_all_vectors
 
