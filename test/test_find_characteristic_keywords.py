@@ -5,7 +5,6 @@ from src.viewpointdiversitydetection import ParsedDocumentsFourForums
 from src.viewpointdiversitydetection import FindCharacteristicKeywords
 
 
-
 class FindCharacteristicKeywordsTest(unittest.TestCase):
     """
     A few tests for the FindCharacteristicKeywords class. These some of these assume that you have a connection

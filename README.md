@@ -1,6 +1,51 @@
 # VDD Algorithm
 Viewpoint Diversity Detection Algorithm
 
+# Dependencies
+
+## Packages
+
+* nltk
+* spacy
+* sklearn
+* gensim
+* numpy
+* matplotlib
+* PyMySQL (For connecting to a copy of the Internet Argument Corpus database)
+* pandas
+* textblob (for sentiment analysis)
+* torch (required by Spacy)
+
+## Gensim
+
+Gensim is going to download some very big files. If you want to control
+where those files go set the following environment commands in your Python
+script. For example if you have a directory '/bigtmp' where you want all 
+Gensim data to go set you environmental variables as follows:
+
+For running from a BASH shell:
+
+    export GENSIM_DATA_DIR=/bigtmp
+    export TEMP=/bigtmp
+
+Here is how you would set it if calling the module from a Jupyter notebook:
+
+    %set_env GENSIM_DATA_DIR=/bigtmp
+    %set_env TEMP=/bigtmp
+
+## NLTK Stopwords
+You will need the nltk package install and the stopwords downloaded
+
+    # python
+    >>> import nltk
+    >>> nltk.download('stopwords')
+    >>> nltk.download('vader_lexicon')
+
+## Spacy
+You will need the package spacy installed and run the following to download the parsing model:
+
+    $ python -m spacy download en_core_web_lg
+
 # Other
 The packaging tutorial I followed to set this whole thing up.
 https://packaging.python.org/tutorials/packaging-projects/
