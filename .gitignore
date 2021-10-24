@@ -130,3 +130,6 @@ dmypy.json
 
 # Configurations
 config.ini
+/src/scripts/svm_models/SVM-fourforums-evolution-fasttext-wiki
+/src/scripts/fil-result/
+/src/scripts/*.pickle

@@ -57,11 +57,28 @@ class RawCorpusFourForums:
         :return: a list of valid stances
         """
 
-        # Connect to the database and retrieve all of the valid topics.
+        # Connect to the database and retrieve all of the valid stances.
         query = """
         select distinct(st.stance)
           from topic_stance st join topic t on st.topic_id = t.topic_id 
          where t.topic = %s
+        """
+        # Posts per stance 1
+        query_stance_1_counts = """
+        select count(*) post_count, stance 
+          from mturk_author_stance join post on post.discussion_id = mturk_author_stance.discussion_id and
+                                        post.author_id = mturk_author_stance.author_id
+                                   join topic_stance a on mturk_author_stance.topic_id = a.topic_id and 
+                                        mturk_author_stance.topic_stance_id_1 = a.topic_stance_id
+         where mturk_author_stance.topic_id = (select topic_id from topic where topic = %s) group by stance;
+        """
+        query_stance_2_counts = """
+        select count(*) post_count, stance 
+          from mturk_author_stance join post on post.discussion_id = mturk_author_stance.discussion_id and
+                                        post.author_id = mturk_author_stance.author_id
+                                   join topic_stance a on mturk_author_stance.topic_id = a.topic_id and 
+                                        mturk_author_stance.topic_stance_id_2 = a.topic_stance_id
+         where mturk_author_stance.topic_id = (select topic_id from topic where topic = %s) group by stance;
         """
         connection = pymysql.connect(host=self.db_host, user=self.db_user, password=self.db_password, db=self.db_name,
                                      cursorclass=pymysql.cursors.SSDictCursor)
@@ -70,10 +87,30 @@ class RawCorpusFourForums:
             with connection.cursor() as cursor:
                 cursor.execute(query, (self.topic_name,))
                 result = cursor.fetchall()
+                stances = [r['stance'] for r in result]
 
-        stances = [r['stance'] for r in result]
+                cursor.execute(query_stance_1_counts, (self.topic_name,))
+                stance_1_counts = cursor.fetchall()
+                stance_1_counts_by_topic = {r['stance']: r['post_count'] for r in stance_1_counts}
 
-        return stances
+                cursor.execute(query_stance_2_counts, (self.topic_name,))
+                stance_2_counts = cursor.fetchall()
+                stance_2_counts_by_topic = {r['stance']: r['post_count'] for r in stance_2_counts}
+
+        def zero_if_missing(d, key):
+            if key in d:
+                return d[key]
+            else:
+                return 0
+
+        def get_dict(s):
+            stance_1_count = zero_if_missing(stance_1_counts_by_topic, s)
+            stance_2_count = zero_if_missing(stance_2_counts_by_topic, s)
+            return {'stance_1': stance_1_count, 'stance_2': stance_2_count}
+
+        stances_and_counts = {s: get_dict(s) for s in stances}
+
+        return stances_and_counts
 
     def print_stats(self):
         """
