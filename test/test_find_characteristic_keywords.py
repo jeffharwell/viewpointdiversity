@@ -3,6 +3,7 @@ import configparser
 from nltk.corpus import stopwords
 from src.viewpointdiversitydetection import ParsedDocumentsFourForums
 from src.viewpointdiversitydetection import FindCharacteristicKeywords
+from src.viewpointdiversitydetection import TokenFilter
 
 
 class FindCharacteristicKeywordsTest(unittest.TestCase):
@@ -20,20 +21,14 @@ class FindCharacteristicKeywordsTest(unittest.TestCase):
         config = configparser.ConfigParser()
         config.read('config.ini')
 
-        def token_filter(spacy_token):
-            stop_words = set(stopwords.words('english'))
-            stop_words = [s for s in stop_words if s not in ['no', 'nor', 'not']]  # I want negations
-            if not spacy_token.is_space and not spacy_token.is_punct and spacy_token.text.lower() not in stop_words:
-                return True
-            else:
-                return False
+        tf = TokenFilter()
 
         user = config['InternetArgumentCorpus']['username']
         password = config['InternetArgumentCorpus']['password']
         host = config['InternetArgumentCorpus']['host']
         database = 'fourforums'
 
-        pdo = ParsedDocumentsFourForums(token_filter, 'gun control', 'opposes strict gun control',
+        pdo = ParsedDocumentsFourForums(tf, 'gun control', 'opposes strict gun control',
                                         'prefers strict gun control', database, host, user, password)
 
         with self.assertRaises(ValueError):
@@ -47,21 +42,14 @@ class FindCharacteristicKeywordsTest(unittest.TestCase):
         config = configparser.ConfigParser()
         config.read('config.ini')
 
-        stop_words = set(stopwords.words('english'))
-        stop_words = [s for s in stop_words if s not in ['no', 'nor', 'not']]  # I want negations
-
-        def token_filter(spacy_token):
-            if not spacy_token.is_space and not spacy_token.is_punct and spacy_token.text.lower() not in stop_words:
-                return True
-            else:
-                return False
+        tf = TokenFilter()
 
         user = config['InternetArgumentCorpus']['username']
         password = config['InternetArgumentCorpus']['password']
         host = config['InternetArgumentCorpus']['host']
         database = 'fourforums'
 
-        pdo = ParsedDocumentsFourForums(token_filter, 'climate change', 'humans not responsible',
+        pdo = ParsedDocumentsFourForums(tf, 'climate change', 'humans not responsible',
                                         'humans responsible', database, host, user, password)
         pdo.set_result_limit(1000)
         pdo.process_corpus()

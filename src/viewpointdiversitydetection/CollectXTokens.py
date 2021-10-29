@@ -1,3 +1,6 @@
+from viewpointdiversitydetection.TokenFilter import TokenFilter
+
+
 class CollectXTokens:
     """
     Class that will collect a specified number of tokens and then return specific tokens as
@@ -10,7 +13,7 @@ class CollectXTokens:
               of strings
     """
 
-    def __init__(self, number_of_tokens, token_filter, trigger):
+    def __init__(self, number_of_tokens, token_filter: TokenFilter, trigger):
         self.number_of_tokens = number_of_tokens
         self.token_filter = token_filter
         self.trigger = trigger  # a list of identifiers, these are the tokens that caused us to be
@@ -49,7 +52,7 @@ class CollectXTokens:
         'number_of_tokens' tokens but will only return tokens where
         token_filter(token) == True
         """
-        token_texts = [t.text for t in self.tokens if self.token_filter(t)]
+        token_texts = [t.text for t in self.tokens if self.token_filter.filter(t)]
         if len(self.token_indexes) > 0:
             starting_index = self.token_indexes[0]
             ending_index = self.token_indexes[-1]

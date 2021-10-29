@@ -1,3 +1,4 @@
+from viewpointdiversitydetection.TokenFilter import TokenFilter
 from viewpointdiversitydetection.CollectXTokens import CollectXTokens
 
 
@@ -15,7 +16,7 @@ class TrackTrailingContext:
                          should be return
     """
 
-    def __init__(self, number_of_tokens, token_filter):
+    def __init__(self, number_of_tokens, token_filter: TokenFilter):
         self.collectors = []
         self.number_of_tokens = number_of_tokens
         self.token_filter = token_filter

@@ -111,7 +111,7 @@ class ExtractContexts:
         for token_idx, token in enumerate(document):
             # if not token.is_space and not token.is_punct and token.text.lower() not in stop_words:
             # if token.pos_ == 'NOUN':
-            if token_filter(token):
+            if token_filter.filter(token):
                 # Bug fix.
                 # We moved the trailing_tokens.collect to below the creation of a new extraction
                 # If it is above that occasionally a new term will match right on the last token

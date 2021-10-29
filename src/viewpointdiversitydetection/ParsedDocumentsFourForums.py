@@ -2,6 +2,7 @@ import pymysql
 import spacy
 import torch
 
+from viewpointdiversitydetection.TokenFilter import TokenFilter
 from viewpointdiversitydetection.CorpusAsStems import CorpusAsStems
 
 
@@ -10,15 +11,12 @@ class ParsedDocumentsFourForums:
     Class to retrieve and parse corpora from the FourForums data within the Internet Argument Corpus 2.0
     """
 
-    def __init__(self, token_filter, topic_name, stance_a, stance_b, db_name, db_host, db_user, db_password):
+    def __init__(self, token_filter: TokenFilter, topic_name, stance_a, stance_b, db_name, db_host, db_user, db_password):
         """
         Initialize the object.
 
-        :param token_filter: this is a closure which returns a boolean when passed a Spacy token, it
-                             defines whether or not we are considering this token to be valid context.
-                             This class does not use it directly, it is just passed to the CorpusAsStems
-                             constructor, which uses it to filter out tokens we are not stemming and
-                             including in the doc and stem indexes.
+        :param token_filter: a TokenFilter object
+        :type token_filter: TokenFilter
         :param topic_name: The name of the topic we are parsing from the FourForums data
         :param stance_a: The first stance to consider
         :param stance_b: The second stance to consider

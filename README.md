@@ -43,8 +43,10 @@ You will need the nltk package install and the stopwords downloaded
 
 ## Spacy
 You will need the package spacy installed and run the following to download the parsing model:
+The lg model is for production. The sm model is used for unit testing.
 
     $ python -m spacy download en_core_web_lg
+    $ python -m spacy download en_core_web_sm
 
 # Other
 The packaging tutorial I followed to set this whole thing up.

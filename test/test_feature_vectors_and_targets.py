@@ -6,6 +6,8 @@ from src.viewpointdiversitydetection import ParsedDocumentsFourForums, FindChara
 from src.viewpointdiversitydetection.FeatureVectorsAndTargets import *
 from nltk.corpus import stopwords
 
+from src.viewpointdiversitydetection import TokenFilter
+
 
 class FeatureVectorsAndTargetsTest(unittest.TestCase):
 
@@ -18,24 +20,16 @@ class FeatureVectorsAndTargetsTest(unittest.TestCase):
         #
         # Retrieve and parse the documents then get the related terms
         #
+        tf = TokenFilter()
         config = configparser.ConfigParser()
         config.read('config.ini')
-
-        stop_words = set(stopwords.words('english'))
-        stop_words = [s for s in stop_words if s not in ['no', 'nor', 'not']]  # I want negations
-
-        def token_filter(spacy_token):
-            if not spacy_token.is_space and not spacy_token.is_punct and spacy_token.text.lower() not in stop_words:
-                return True
-            else:
-                return False
 
         user = config['InternetArgumentCorpus']['username']
         password = config['InternetArgumentCorpus']['password']
         host = config['InternetArgumentCorpus']['host']
         database = 'fourforums'
 
-        pdo = ParsedDocumentsFourForums(token_filter, 'climate change', 'humans not responsible',
+        pdo = ParsedDocumentsFourForums(tf, 'climate change', 'humans not responsible',
                                         'humans responsible', database, host, user, password)
         pdo.set_result_limit(500)
         pdo.process_corpus()

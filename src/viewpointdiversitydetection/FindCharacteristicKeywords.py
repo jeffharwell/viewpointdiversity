@@ -1,6 +1,7 @@
 from nltk import SnowballStemmer
 from nltk.corpus import stopwords
 
+from viewpointdiversitydetection.TokenFilter import NounTokenFilter
 from viewpointdiversitydetection.ExtractedContextRanges import ExtractedContextRanges
 from viewpointdiversitydetection.TermContext import TermContext
 from viewpointdiversitydetection.TrackLeadingContext import TrackLeadingContext
@@ -40,10 +41,10 @@ class FindCharacteristicKeywords:
         :param match_terms: A list of terms that we are searching the document for
         :param context_size: The number of tokens leading and trailing context we are collecting
         :param token_filter: A function that returns a boolean indicating if a certain taken should be included
-                             in the context. Note that this does not affect the number of tokens we collect, it
-                             is only applied when we actually return the context. Put another way token_filter
-                             is applied after 'content_size' tokens have been collected and before the contexts
-                             are returned.
+                                   in the context. Note that this does not affect the number of tokens we collect, it
+                                   is only applied when we actually return the context. Put another way token_filter
+                                   is applied after 'content_size' tokens have been collected and before the contexts
+                                   are returned.
         """
         stemmer = self.stemmer
         extracted_contents = self.extracted_contexts
@@ -134,11 +135,7 @@ class FindCharacteristicKeywords:
         stemmer = self.stemmer
         stop_words = self.stop_words
 
-        def token_filter(spacy_token):
-            if spacy_token.pos_ == 'NOUN':
-                return True
-            else:
-                return False
+        noun_token_filter = NounTokenFilter()
 
         def get_nouns(context_dict):
             leading_nouns = [noun for noun in context_dict['leading_tokens']]
@@ -159,7 +156,7 @@ class FindCharacteristicKeywords:
         all_nouns = []
         for doc_idx in matching_doc_indexes:
             doc = all_docs[doc_idx]
-            contexts = self._get_context_for_multiple_terms(doc, doc_idx, terms, 4, token_filter)
+            contexts = self._get_context_for_multiple_terms(doc, doc_idx, terms, 4, noun_token_filter)
             for context in contexts:
                 nouns_from_contexts = []
                 for n in context.contexts:

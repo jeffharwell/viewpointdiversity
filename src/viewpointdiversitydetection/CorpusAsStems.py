@@ -1,5 +1,7 @@
 from nltk import SnowballStemmer
 
+from viewpointdiversitydetection import TokenFilter
+
 
 class CorpusAsStems:
     """
@@ -12,12 +14,12 @@ class CorpusAsStems:
                          which indicates whether it is a valid stem.
     """
 
-    def __init__(self, token_filter):
+    def __init__(self, token_filter: TokenFilter):
         """
         Data structure that hold each stem in the corpus
         and the number of documents that it appears in.
 
-        :param token_filter:
+        :param token_filter: a TokenFilter object
         """
 
         # Every document in the corpus gets an index number, this hold them
@@ -76,7 +78,7 @@ class CorpusAsStems:
             for token in doc:
                 # We are going to ignore stop words, punctuation, and spacing
                 # if not token.is_space and not token.is_punct and not token.is_stop:
-                if self.token_filter(token):
+                if self.token_filter.filter(token):
                     stem = self.stemmer.stem(token.text)
                     if stem not in unique_stems and stem != '':
                         unique_stems.append(stem)

@@ -1,3 +1,6 @@
+from viewpointdiversitydetection.TokenFilter import TokenFilter
+
+
 class TrackLeadingContext:
     """
     Class that remembers the last x tokens it has collected. Upon calling the rememberLastTokens method
@@ -9,7 +12,7 @@ class TrackLeadingContext:
                          it should be return
     """
 
-    def __init__(self, number_of_tokens, token_filter):
+    def __init__(self, number_of_tokens, token_filter: TokenFilter):
         self.number_of_tokens = number_of_tokens
         self.token_filter = token_filter
         self.tokens = []
@@ -48,7 +51,7 @@ class TrackLeadingContext:
             self.triggers.append(trigger)
             self.indexes.append((None, None))  # empty tuple, no start or end indexes because we don't have any tokens
         else:
-            token_texts = [t.text for t in self.tokens if self.token_filter(t)]
+            token_texts = [t.text for t in self.tokens if self.token_filter.filter(t)]
             self.snapshots.append(token_texts)
             self.triggers.append(trigger)
             self.indexes.append((self.token_indexes[0],

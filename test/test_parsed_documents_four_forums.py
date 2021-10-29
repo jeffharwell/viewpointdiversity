@@ -2,6 +2,7 @@ import re
 import unittest
 import configparser
 from src.viewpointdiversitydetection import ParsedDocumentsFourForums
+from viewpointdiversitydetection import TokenFilter
 
 
 class ParsedDocumentFourForumTest(unittest.TestCase):
@@ -10,83 +11,57 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
     to a copy of the Internet Argument Corpus database. Put the database host, username, and password in the
     config.ini file before testing.
     """
+    def setUp(self):
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+
+        self.tf = TokenFilter()
+
+        self.user = config['InternetArgumentCorpus']['username']
+        self.password = config['InternetArgumentCorpus']['password']
+        self.host = config['InternetArgumentCorpus']['host']
+        self.database = 'fourforums'
 
     def test_invalid_stance_as_substring(self):
         """
         Make sure that a stance is still invalid even if it is the substring of a valid stance.
         """
 
-        config = configparser.ConfigParser()
-        config.read('config.ini')
-
-        def dummy_filter(t):
-            return True
-
-        user = config['InternetArgumentCorpus']['username']
-        password = config['InternetArgumentCorpus']['password']
-        host = config['InternetArgumentCorpus']['host']
-        database = 'fourforums'
-
         with self.assertRaises(ValueError):
-            ParsedDocumentsFourForums(dummy_filter, 'gun control', 'oppose strict gun control',
-                                      'prefers strict gun control', database, host, user, password)
+            ParsedDocumentsFourForums(self.tf, 'gun control', 'oppose strict gun control',
+                                      'prefers strict gun control', self.database, self.host, self.user, self.password)
 
     def test_invalid_topic(self):
         """
         Test class to ensure that the function create_has_sentiments_present_vector is actually working.
         """
 
-        # Read in our configuration from the config.ini file, it assumes we are
-        # using the config in the src tree
-        config = configparser.ConfigParser()
-        config.read('config.ini')
-
-        def dummy_filter(t):
-            return True
-
-        user = config['InternetArgumentCorpus']['username']
-        password = config['InternetArgumentCorpus']['password']
-        host = config['InternetArgumentCorpus']['host']
-        database = 'fourforums'
-
         # an invalid topic, it should throw a value error
         with self.assertRaises(ValueError):
-            ParsedDocumentsFourForums(dummy_filter, 'invalid_topic', 'stance_a', 'stance_b',
-                                      database, host, user, password)
+            ParsedDocumentsFourForums(self.tf, 'invalid_topic', 'stance_a', 'stance_b',
+                                      self.database, self.host, self.user, self.password)
 
         # an invalid stance, should also throw a value error
         with self.assertRaises(ValueError):
-            ParsedDocumentsFourForums(dummy_filter, 'climate change', 'stance_a', 'humans not responsible',
-                                      database, host, user, password)
+            ParsedDocumentsFourForums(self.tf, 'climate change', 'stance_a', 'humans not responsible',
+                                      self.database, self.host, self.user, self.password)
         # an invalid stance, should also throw a value error
         with self.assertRaises(ValueError):
-            ParsedDocumentsFourForums(dummy_filter, 'climate change', 'humans responsible', 'stance_b',
-                                      database, host, user, password)
+            ParsedDocumentsFourForums(self.tf, 'climate change', 'humans responsible', 'stance_b',
+                                      self.database, self.host, self.user, self.password)
 
         # valid topic and stances, initialize without an error
-        ParsedDocumentsFourForums(dummy_filter, 'climate change', 'humans responsible', 'humans not responsible',
-                                  database, host, user, password)
+        ParsedDocumentsFourForums(self.tf, 'climate change', 'humans responsible', 'humans not responsible',
+                                  self.database, self.host, self.user, self.password)
 
     def test_print_annotated_posts_by_topic(self):
         """
         Not much of a test class. Just does a bit of checking to see if this method actually
         returns some data.
         """
-        # Read in our configuration from the config.ini file, it assumes we are
-        # using the config in the src tree
-        config = configparser.ConfigParser()
-        config.read('config.ini')
 
-        def dummy_filter(t):
-            return True
-
-        user = config['InternetArgumentCorpus']['username']
-        password = config['InternetArgumentCorpus']['password']
-        host = config['InternetArgumentCorpus']['host']
-        database = 'fourforums'
-
-        pdo = ParsedDocumentsFourForums(dummy_filter, 'climate change', 'humans responsible', 'humans not responsible',
-                                        database, host, user, password)
+        pdo = ParsedDocumentsFourForums(self.tf, 'climate change', 'humans responsible', 'humans not responsible',
+                                        self.database, self.host, self.user, self.password)
         stats = pdo.print_annotated_posts_by_topic()
         # print(stats)
 
@@ -97,21 +72,10 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
         Because of the way we are doing query construction within the class, you can't set change query limit
         once you set it. Ensure that attempting to do this throws a RuntimeException.
         """
-        # Read in our configuration from the config.ini file, it assumes we are
-        # using the config in the src tree
-        config = configparser.ConfigParser()
-        config.read('config.ini')
 
-        def dummy_filter(t):
-            return True
-
-        user = config['InternetArgumentCorpus']['username']
-        password = config['InternetArgumentCorpus']['password']
-        host = config['InternetArgumentCorpus']['host']
-        database = 'fourforums'
-
-        pdo = ParsedDocumentsFourForums(dummy_filter, 'gun control', 'opposes strict gun control',
-                                        'prefers strict gun control', database, host, user, password)
+        pdo = ParsedDocumentsFourForums(self.tf, 'gun control', 'opposes strict gun control',
+                                        'prefers strict gun control',
+                                        self.database, self.host, self.user, self.password)
         pdo.set_result_limit(100)
         with self.assertRaises(RuntimeError):
             pdo.set_result_limit(200)
@@ -120,21 +84,10 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
         """
         Test the ability of the ParsedDocumentsFourForumns class to limit the number of texts used when parsing.
         """
-        # Read in our configuration from the config.ini file, it assumes we are
-        # using the config in the src tree
-        config = configparser.ConfigParser()
-        config.read('config.ini')
 
-        def dummy_filter(t):
-            return True
-
-        user = config['InternetArgumentCorpus']['username']
-        password = config['InternetArgumentCorpus']['password']
-        host = config['InternetArgumentCorpus']['host']
-        database = 'fourforums'
-
-        pdo = ParsedDocumentsFourForums(dummy_filter, 'gun control', 'opposes strict gun control',
-                                        'prefers strict gun control', database, host, user, password)
+        pdo = ParsedDocumentsFourForums(self.tf, 'gun control', 'opposes strict gun control',
+                                        'prefers strict gun control',
+                                        self.database, self.host, self.user, self.password)
         limit = 100
         pdo.set_result_limit(limit)
         self.assertTrue(pdo.is_limited)
@@ -154,23 +107,12 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
 
     def test_get_stance_labels(self):
         """
-        Test the ability of the ParsedDocumentsFourForumns class to limit the number of texts used when parsing.
+        Test the ability of the ParsedDocumentsFourForums class to limit the number of texts used when parsing.
         """
-        # Read in our configuration from the config.ini file, it assumes we are
-        # using the config in the src tree
-        config = configparser.ConfigParser()
-        config.read('config.ini')
 
-        def dummy_filter(t):
-            return True
-
-        user = config['InternetArgumentCorpus']['username']
-        password = config['InternetArgumentCorpus']['password']
-        host = config['InternetArgumentCorpus']['host']
-        database = 'fourforums'
-
-        pdo = ParsedDocumentsFourForums(dummy_filter, 'gun control', 'opposes strict gun control',
-                                        'prefers strict gun control', database, host, user, password)
+        pdo = ParsedDocumentsFourForums(self.tf, 'gun control', 'opposes strict gun control',
+                                        'prefers strict gun control',
+                                        self.database, self.host, self.user, self.password)
 
         with self.assertRaises(ValueError):
             pdo.get_stance_label('invalid stance name')
