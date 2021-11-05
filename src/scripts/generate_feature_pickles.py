@@ -56,7 +56,11 @@ class CorpusDefinition:
         self.search_terms = search_terms
 
 
-def main():
+def main(vector_model_index):
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    pickle_directory = config['General']['pickle_directory']
+
     gun_control_definition = CorpusDefinition('gun control')
     evolution_definition = CorpusDefinition('evolution')
     abortion_definition = CorpusDefinition('abortion')
@@ -81,8 +85,8 @@ def main():
                      {'short_name': 'word2vec-google-news', 'api_load': 'word2vec-google-news-300'},
                      {'short_name': 'glove-gigaword', 'api_load': 'glove-wiki-gigaword-300'}]
 
-    vm_api_name = vector_models[2]['api_load']
-    vm_short_name = vector_models[2]['short_name']
+    vm_api_name = vector_models[vector_model_index]['api_load']
+    vm_short_name = vector_models[vector_model_index]['short_name']
     print(f"Loading vector model {vm_short_name}")
     vector_model = api.load(vm_api_name)
 
@@ -113,7 +117,7 @@ def main():
 
         # Store and Load this Structure
         # filename: {topic}_pdo.pickle
-        pdo_pickle_name = f"{cd.topic}_pdo.pickle"
+        pdo_pickle_name = os.path.join(pickle_directory, f"{cd.topic}_pdo.pickle")
         if os.path.exists(pdo_pickle_name):
             print("Loading Parsed Documents from File")
             infile = open(pdo_pickle_name, 'rb')
@@ -141,7 +145,7 @@ def main():
         # Store and Load this Structure as well
         # should just be able to store the related terms here
         # filename: {topic}_related_terms.pickle
-        pickle_name = f"{cd.topic}_related_terms.pickle"
+        pickle_name = os.path.join(pickle_directory, f"{cd.topic}_related_terms.pickle")
         if os.path.exists(pickle_name):
             print("Loading Related Terms from File")
             infile = open(pickle_name, 'rb')
@@ -161,7 +165,7 @@ def main():
         #
         # Create the Feature Vector from the Contexts
         #
-        pickle_name = f"{cd.topic}_{vm_short_name}_features.pickle"
+        pickle_name = os.path.join(pickle_directory, f"{cd.topic}_{vm_short_name}_features.pickle")
         if os.path.exists(pickle_name):
             print("Loading Features from File")
             infile = open(pickle_name, 'rb')
@@ -180,6 +184,36 @@ def main():
 
         print(f"Feature vector size is {len(fvt.feature_vectors[0])}.")
 
+        #
+        # Create a save a holder object, which saves just the features and their components
+        # without also saving an instance of the parsed documents and the vector model.
+        #
+        pickle_name = os.path.join(pickle_directory, f"{cd.topic}_{vm_short_name}_feature_holder.pickle")
+        if os.path.exists(pickle_name):
+            print("Loading Features Holder from File")
+            infile = open(pickle_name, 'rb')
+            holder = pickle.load(infile)
+            infile.close()
+        else:
+            print("Creating Feature Holder")
+            h = vdd.Holder(database, pdo.topic_name, fvt.search_terms, pdo.stance_a, pdo.stance_b,
+                           pdo.get_stance_label(pdo.stance_a), pdo.get_stance_label(pdo.stance_b),
+                           pdo.stance_agreement_cutoff, vm_short_name)
+            h.populate(fvt)
+
+            outfile = open(pickle_name, 'wb')
+            pickle.dump(h, outfile)
+            outfile.close()
+
 
 if __name__ == '__main__':
-    main()
+    """
+    Specify which vector model you want to run the program with by specifying
+    the index in the call to main() below.
+    
+    Index: Model Name
+    0: fasttext-wiki-news-subwords-300
+    1: word2vec-google-news-300'
+    2: glove-wiki-gigaword-300
+    """
+    main(0)

@@ -26,6 +26,7 @@ class FeatureVectorsAndTargets:
         self.context_size = context_size
 
         self.feature_vectors = []
+        self.feature_vectors_as_components = []
         self.targets_for_features = []
 
         self.length_of_sentiment_vector = 0
@@ -103,4 +104,66 @@ class FeatureVectorsAndTargets:
 
             sv = combine_as_average(search_sentiment, related_sentiment, include_zeros=True)
             self.feature_vectors.append(sv + list(search_word2vec) + list(related_word2vec))
+            self.feature_vectors_as_components.append({'sentiment': sv,
+                                                       'search': search_word2vec,
+                                                       'related': 'related_word2vec'})
             self.targets_for_features.append(self.pdo.target[i])
+
+
+class Holder:
+    """
+    Holds just the features and targets, not the parsed documents themselves or the vector model.
+    Useful for creating smaller pickle files.
+
+    Attributes:
+        feature_vectors                 a list of feature vectors, one entry per document
+        feature_vectors_as_components   the feature vector but in a dictionary identifying the individual components
+        targets_for_features            list containing the target for each feature
+    """
+    def __init__(self, database: str, topic_name: str, search_terms: list[str], stance_a: str, stance_b: str,
+                 label_a: str, label_b: str, stance_agreement_cutoff: float, vector_model_short_name: str):
+        """
+        Initialized the object with critical meta-date about the features being stored.
+
+        :param database: Name of the source database for the corpus the features were extracted from
+        :type database: str
+        :param topic_name: Name of the topic
+        :type topic_name: str
+        :param search_terms: list of strings contaning the search terms used to extract the context features
+        :type search_terms: list[str]
+        :param stance_a: stance a, the stance corresponding to target a
+        :type search_terms: str
+        :param stance_b: stance b, the stance corresponding to target b
+        :type search_terms: str
+        :param label_a: the target label for stance a
+        :type label_a: str
+        :param label_b: the target label for stance b
+        :type label_b: str
+        :param stance_agreement_cutoff: the inter-annotator agreement cutoff used when generating the features
+        :type stance_agreement_cutoff: float
+        :param vector_model_short_name: the short name of the vector model used to create the features
+        :type vector_model_short_name: str
+        """
+        self.database = database
+        self.topic_name = topic_name
+        self.search_terms = search_terms.copy()
+        self.stance_a = stance_a
+        self.stance_b = stance_b
+        self.label_a = label_a
+        self.label_b = label_b
+        self.stance_agreement_cutoff = stance_agreement_cutoff
+        self.vector_model_short_name = vector_model_short_name
+        self.feature_vectors = None
+        self.feature_vectors_as_components = None
+        self.targets_for_features = None
+
+    def populate(self, fvt: FeatureVectorsAndTargets):
+        """
+        Copies the feature vectors, feature vectors as components, and targets
+        from a FeatureVectorsAndTargets object to this Holder object.
+        :param fvt: the FeatureVectorsAndTargets object you wish to copy
+        :type fvt: FeatureVectorsAndTargets
+        """
+        self.feature_vectors = fvt.feature_vectors.copy()
+        self.feature_vectors_as_components = fvt.feature_vectors_as_components.copy()
+        self.targets_for_features = fvt.targets_for_features.copy()
