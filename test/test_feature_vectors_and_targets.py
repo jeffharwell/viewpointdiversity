@@ -56,6 +56,15 @@ class FeatureVectorsAndTargetsTest(unittest.TestCase):
         self.assertTrue(len(fvt.feature_vectors) > 0)
         self.assertTrue(len(fvt.targets_for_features) > 0)
 
+        # The 'search' and 'related' components together should be equal to the word2vec
+        # portion of the full feature array.
+        combined = list(fvt.feature_vectors_as_components[0]['search']) + \
+                   list(fvt.feature_vectors_as_components[0]['related'])
+        combined_array = np.array(combined)
+        len_sentiment = len(fvt.feature_vectors_as_components[0]['sentiment'])
+        just_w2v = fvt.feature_vectors[0][len_sentiment:]
+        self.assertTrue(np.array_equal(combined_array, just_w2v))
+
 
 if __name__ == '__main__':
     unittest.main()

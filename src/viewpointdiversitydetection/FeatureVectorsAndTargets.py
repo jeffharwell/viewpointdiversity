@@ -106,7 +106,7 @@ class FeatureVectorsAndTargets:
             self.feature_vectors.append(sv + list(search_word2vec) + list(related_word2vec))
             self.feature_vectors_as_components.append({'sentiment': sv,
                                                        'search': search_word2vec,
-                                                       'related': 'related_word2vec'})
+                                                       'related': related_word2vec})
             self.targets_for_features.append(self.pdo.target[i])
 
 

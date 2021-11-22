@@ -9,7 +9,7 @@ import pickle
 import configparser
 
 # Import Viewpoint Diversity Detection Package
-import src.viewpointdiversitydetection as vdd
+import viewpointdiversitydetection as vdd
 
 # Word2Vec library
 import gensim.downloader as api

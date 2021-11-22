@@ -26,7 +26,7 @@ from joblib import dump
 import tracemalloc
 
 # Import Viewpoint Diversity Detection Package
-import src.viewpointdiversitydetection as vdd
+import viewpointdiversitydetection as vdd
 
 
 def display_top(snapshot, key_type='lineno', limit=5):
