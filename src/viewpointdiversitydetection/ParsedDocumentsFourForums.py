@@ -1,6 +1,9 @@
 import pymysql
 import spacy
+from negspacy.negation import Negex
+from negspacy.termsets import termset
 import torch
+
 
 from viewpointdiversitydetection.TokenFilter import TokenFilter
 from viewpointdiversitydetection.CorpusAsStems import CorpusAsStems
@@ -28,8 +31,11 @@ class ParsedDocumentsFourForums:
         self.topic_name = topic_name
         self.stance_a = stance_a
         self.stance_b = stance_b
-        # Our target classes will be integers 'a', and 'b'. This structure maps those target classes
-        # to their descriptions
+        # Our target classes will be strings 'a', and 'b'. The below structure maps those target classes
+        # to their descriptions. Note, this is arbitrary. In the SQL below we do not know if the description we are
+        # assigning to label 'a' will actually correspond to topic_stance_id_1 or topic_stance_id_2. So it is entirely
+        # possible that self.stance_target_id_by_desc[query_result['stance_1']] == 'b'. We account for this in the
+        # class code, but if you are debugging or extending something it might throw you for a loop.
         self.stance_target_id_by_desc = {self.stance_a: 'a', self.stance_b: 'b'}
         # This is how much agreement the annotators need to have before
         # we consider a post to have a certain stance. A value of .2 means that
@@ -38,13 +44,17 @@ class ParsedDocumentsFourForums:
         self.stance_agreement_cutoff = .2
         self.num_documents_under_cutoff = 0
 
+        # Add negation extraction to the Spacy NLP pipeline when processing documents
+        self.extract_negations = False
+        self.spacy_model = 'en_core_web_lg'
+
         self.query = """
                 select post.author_id, mturk_author_stance.discussion_id, post.text_id, topic_stance_id_1, 
-               a.stance stance_a, topic_stance_votes_1, topic_stance_id_2, b.stance stance_b,
+               a.stance stance_1, topic_stance_votes_1, topic_stance_id_2, b.stance stance_2,
                topic_stance_votes_2, text.`text`,
                if(topic_stance_votes_1 = 0 || topic_stance_votes_2 = 0, 'unanimous', 'split') consensus,
-               (topic_stance_votes_1 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_a,
-               (topic_stance_votes_2 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_b
+               (topic_stance_votes_1 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_1,
+               (topic_stance_votes_2 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_2
           from mturk_author_stance join topic_stance a on mturk_author_stance.topic_id = a.topic_id and 
                                                   mturk_author_stance.topic_stance_id_1 = a.topic_stance_id 
                                    join topic on topic.topic_id = a.topic_id
@@ -79,6 +89,7 @@ class ParsedDocumentsFourForums:
         self.authors_stance_by_desc = {self.stance_a: self.authors_stance1, self.stance_b: self.authors_stance2}
         self.text = list()
         self.target = list()
+        self.continuous_target = list()
         self.all_docs = []
         self.cas = CorpusAsStems(self.token_filter)
         self.corpusAsStems = self.cas  # a bit more self documenting as an object attribute
@@ -199,11 +210,15 @@ class ParsedDocumentsFourForums:
 
         # Set up Spacy
         torch.set_num_threads(1)  # works around a Spacy bug
-        nlp = spacy.load('en_core_web_lg')
+        nlp = spacy.load(self.spacy_model)
+        if self.extract_negations:
+            ts = termset("en")
+            nlp.add_pipe("negex", config={"neg_termset": ts.get_patterns()})
 
         # Parse the Documents and put the parse in self.all_docs
         print("Loading %s documents" % len(self.text))
         doc_list = nlp.pipe(self.text, n_process=4)
+
         for doc in doc_list:
             self.all_docs.append(doc)
 
@@ -220,11 +235,11 @@ class ParsedDocumentsFourForums:
         query = """
         select count(distinct(text_id)) as num_posts, topic from ( -- sub select a
             select post.author_id, mturk_author_stance.discussion_id, post.text_id, topic.topic, topic_stance_id_1, 
-                   a.stance stance_a, topic_stance_votes_1, topic_stance_id_2, b.stance stance_b, 
+                   a.stance stance_1, topic_stance_votes_1, topic_stance_id_2, b.stance stance_2, 
                    topic_stance_votes_2, text.`text`,
                    if(topic_stance_votes_1 = 0 || topic_stance_votes_2 = 0, 'unanimous', 'split') consensus,
-                   (topic_stance_votes_1 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_a,
-                   (topic_stance_votes_2 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_b
+                   (topic_stance_votes_1 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_1,
+                   (topic_stance_votes_2 / (topic_stance_votes_2 + topic_stance_votes_1)) percent_stance_2
             from mturk_author_stance join topic_stance a on mturk_author_stance.topic_id = a.topic_id and 
                                           mturk_author_stance.topic_stance_id_1 = a.topic_stance_id 
                                      join topic on topic.topic_id = a.topic_id
@@ -273,6 +288,37 @@ class ParsedDocumentsFourForums:
         print(f"Number of supporting authors: {len(self.authors_stance2)}")
         print(f"Number of opposing authors: {len(self.authors_stance1)}")
 
+    @staticmethod
+    def _calculate_continuous_stance_value(votes_stance_a, votes_stance_b, post_id):
+        """
+        Private routine that calculates a continuous value for the stance between -1 and 1 based on the
+        inter annotator agreement from the corpus using the following formula:
+
+        v_a [=] votes for stance a
+        v_b [=] votes for stance b
+        cvp [=] continuous viewpoint value
+        cvp = (v_b - v_a) / (v_b + v_a)
+
+        a cvp of -1 means 100% inter annotator agreement for viewpoint a, a cvp of 1 means 100% inter annotator
+        agreement for viewpoint b.
+
+        If you want to use a different formula create an child class and override this method.
+
+        :param votes_stance_a: number of votes for stance a
+        :param votes_stance_b: number of votes for stance b
+        :param post_id: the ID of the post in question, used for error messages
+        :return: float value between -1 and 1
+        """
+
+        # Calculate the continuous stance value. -1 is 100% stance A, 1 is 100% stance B.
+        if votes_stance_a + votes_stance_b == 0:
+            msg = f"There are no stance votes for {post_id}, can't calculate stance."
+            raise RuntimeError(msg)
+        v_a = votes_stance_a
+        v_b = votes_stance_b
+        continuous_stance = (v_b - v_a) / (v_b + v_a)
+        return continuous_stance
+
     def _get_corpus(self):
         """
         Gets the corpus from the data source and does some initial processing to get it into
@@ -303,34 +349,62 @@ class ParsedDocumentsFourForums:
                                             self.stance_a, self.stance_b))
                 result = cursor.fetchone()
                 while result is not None:
-                    # implement the cutoff
-                    if result['percent_stance_a'] <= self.stance_agreement_cutoff or \
-                       result['percent_stance_b'] <= self.stance_agreement_cutoff:
+                    stance_vote_difference = result['topic_stance_votes_1'] - result['topic_stance_votes_2']
+                    # implement the cutoff. We also don't include the document if it is a tie. That would be fine
+                    # for the continuous target value, but wouldn't work at all for the binary stance value.
+                    if (result['percent_stance_1'] <= self.stance_agreement_cutoff or
+                       result['percent_stance_2'] <= self.stance_agreement_cutoff) and \
+                       stance_vote_difference != 0:
                         
                         author = result['author_id']
                         text = result['text']
+                        post_id = result['text_id']
     
                         if result['topic_stance_votes_1'] > result['topic_stance_votes_2']:
-                            stance_target_id = self.stance_target_id_by_desc[result['stance_a']]
-                            authors_stance = self.authors_stance_by_desc[result['stance_a']]
+                            stance_target_id = self.stance_target_id_by_desc[result['stance_1']]
+                            authors_stance = self.authors_stance_by_desc[result['stance_1']]
                             if author not in authors_stance:
                                 authors_stance.append(author)
                         else:
-                            stance_target_id = self.stance_target_id_by_desc[result['stance_b']]
-                            authors_stance = self.authors_stance_by_desc[result['stance_b']]
+                            stance_target_id = self.stance_target_id_by_desc[result['stance_2']]
+                            authors_stance = self.authors_stance_by_desc[result['stance_2']]
                             if author not in authors_stance:
                                 authors_stance.append(author)
-    
-                        post_id = result['text_id']
+
+                        # Calculate the continuous stance value
+                        #
+                        # This is confusing ... we don't know, from the SQL code, if result['stance_1'], which is the
+                        # string in the database, actually corresponds with
+                        # stance_target_id_by_desc[result['stance_1']] == 'a' since the constructor just takes the first
+                        # stance string passed in and arbitrarily assigns it to label 'a'. If
+                        # stance_target_id_by_desc[result['stance_1']] == 'a' then topic_stance_votes_1 is the votes
+                        # for stance a, so we put that argument first and _calculate_continuous_stance_value gives
+                        # us < 0.0 for the actual stance a we specified in the constructor.
+                        #
+                        # However, in the database it could be that result['stance_1'] corresponds to
+                        # stance_target_id_by_desc[result['stance_1']] == 'b'. In which case topic_stance_votes_2 are
+                        # actually votes for 'a' (i.e. the label in our code is opposite from how the labels are set in
+                        # the database, our string labeled stance a corresponds to topic_stance_2.) In that case we need
+                        # to switch the order of our arguments to self._calculate_continuous_stance_value so that a
+                        # value < 0.0 will be for the string for stance a that was passed to the constructor.
+                        if self.stance_target_id_by_desc[result['stance_1']] == 'a':
+                            continuous_stance = self._calculate_continuous_stance_value(result['topic_stance_votes_1'],
+                                                                                        result['topic_stance_votes_2'],
+                                                                                        post_id)
+                        else:
+                            continuous_stance = self._calculate_continuous_stance_value(result['topic_stance_votes_2'],
+                                                                                        result['topic_stance_votes_1'],
+                                                                                        post_id)
+
                         key = str(post_id)
                         if key in self.data_structure:
                             print("In theory this should never happen, each post_id should be unique")
-                            existing_text, existing_stance = self.data_structure[key]
-                            if existing_stance != stance_target_id:
+                            existing_text, existing_stance, existing_continuous_stance = self.data_structure[key]
+                            if existing_stance != stance_target_id or existing_continuous_stance != continuous_stance:
                                 raise RuntimeError("Author changed stance within a discussion")
-                            self.data_structure[key] = (existing_text + " " + text, stance_target_id)
+                            self.data_structure[key] = (existing_text + " " + text, stance_target_id, continuous_stance)
                         else:
-                            self.data_structure[key] = (text, stance_target_id)
+                            self.data_structure[key] = (text, stance_target_id, continuous_stance)
                     else:
                         # Keep track of the number of documents we rejected because the annotator confidence
                         # was below the cutoff.
@@ -345,5 +419,6 @@ class ParsedDocumentsFourForums:
             if item[1] >= self.length_filter:
                 self.text.append(self.data_structure[item[0]][0])
                 self.target.append(self.data_structure[item[0]][1])
+                self.continuous_target.append(self.data_structure[item[0]][2])
             else:
                 self.length_filtered_count = self.length_filtered_count + 1

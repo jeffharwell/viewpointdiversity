@@ -80,6 +80,61 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             pdo.set_result_limit(200)
 
+    def test_add_negation(self):
+        """
+        Tests the option to add Negex to the Spacy pipeline by setting an attribute
+        """
+
+        pdo = ParsedDocumentsFourForums(self.tf, 'gun control', 'opposes strict gun control',
+                                        'prefers strict gun control',
+                                        self.database, self.host, self.user, self.password)
+        limit = 40
+        pdo.set_result_limit(limit)
+        pdo.extract_negations = True
+        pdo.spacy_model = 'en_core_web_trf'
+        print("Testing Add Negation")
+        pdo.process_corpus()
+
+        print("Listing All Named Entities and Negation Status")
+        for d in pdo.all_docs:
+            for e in d.ents:
+                print(e.text, e._.negex)
+
+    def test_continuous_target(self):
+        """
+        Tests the option to add Negex to the Spacy pipeline by setting an attribute
+        """
+
+        pdo = ParsedDocumentsFourForums(self.tf, 'gun control', 'opposes strict gun control',
+                                        'prefers strict gun control',
+                                        self.database, self.host, self.user, self.password)
+        limit = 40
+        pdo.set_result_limit(limit)
+        pdo.stance_agreement_cutoff = 1  # disable the inter-annotator cutoff
+        pdo.extract_negations = True
+        pdo.spacy_model = 'en_core_web_trf'
+        print("Testing Continuous Target")
+        pdo.process_corpus()
+
+        print(pdo.continuous_target)
+        print(pdo.target)
+        self.assertTrue(max(pdo.continuous_target) <= 1)
+        self.assertTrue(min(pdo.continuous_target) >= -1)
+        number_zeros = sum([1 for i in pdo.continuous_target if i == 0.0])
+
+        # There should be no zeros in continuous target. That would mean that there were equal votes
+        # for each stance. We filter these documents out because the binary target ends of being undefined.
+        self.assertTrue(number_zeros == 0)
+
+        # Need two more tests, one makes sure that everything above 0.0 is stance 'b', the other makes sure everything
+        # below 0.0 is stance 'a'
+        for c, t in zip(pdo.continuous_target, pdo.target):
+            # print(c, t)
+            if c > 0.0:
+                self.assertTrue(t == 'b')
+            if c < 0.0:
+                self.assertTrue(t == 'a')
+
     def test_limit_query_results(self):
         """
         Test the ability of the ParsedDocumentsFourForumns class to limit the number of texts used when parsing.
