@@ -12,3 +12,4 @@ from .TokenFilter import *
 # Pull the utility functions up to the package level
 from .feature_vector_creation_utilities import *
 from .model_evaluation_utilities import *
+from .compare_documents import *
