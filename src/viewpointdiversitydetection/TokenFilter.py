@@ -28,7 +28,11 @@ class TokenFilter:
         :param spacy_token: a spacy token
         :return: boolean
         """
-        if not spacy_token.is_space and not spacy_token.is_punct and spacy_token.text.lower() not in self.stop_words:
+        if not spacy_token.is_space \
+           and not spacy_token.is_punct \
+           and spacy_token.text.lower() not in self.stop_words \
+           and not spacy_token.text.startswith('http:') \
+           and not spacy_token.text.startswith('https:'):
             return True
         else:
             return False

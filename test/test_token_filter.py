@@ -14,7 +14,7 @@ class TokenFilterTest(unittest.TestCase):
         """
         Set up our tokens.
         """
-        text = "This is my test text and  sentence."
+        text = "This is my test text and  sentence http://cn https://k."
         texts = [text]
         # Set up Spacy
         torch.set_num_threads(1)  # works around a Spacy bug
@@ -37,13 +37,21 @@ class TokenFilterTest(unittest.TestCase):
         self.space_token = mydoc[6]
         self.stopword_token = mydoc[5]
         self.valid_token = mydoc[7]
-        self.punct_token = mydoc[8]
+        self.http_token = mydoc[8]
+        self.https_token = mydoc[9]
+        self.punct_token = mydoc[10]
+
+    def test_filter_http(self):
+        tf = TokenFilter()
+
+        self.assertFalse(tf.filter(self.http_token))
+
+    def test_filter_https(self):
+        tf = TokenFilter()
+
+        self.assertFalse(tf.filter(self.https_token))
 
     def test_stop_word(self):
-        """
-        This is basically our end-to-end test case. Take some data from the database and create feature vectors
-        from those documents. The test uses a smaller word2vec model for speed.
-        """
 
         tf = TokenFilter()
 
