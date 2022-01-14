@@ -2,6 +2,7 @@ import math
 import re
 import unittest
 import configparser
+import pickle
 
 from nltk import SnowballStemmer
 
@@ -96,6 +97,29 @@ class CompareDocumentsTest(unittest.TestCase):
                     self.assertTrue(wmd['max'] >= wmd['min'])
                     self.assertTrue(wmd['max'] >= wmd['avg'])
                     self.assertTrue(wmd['avg'] >= wmd['min'])
+
+    def test_pickle_contexts(self):
+        """
+        The Sentences and Contexts object must be able to be pickled.
+        """
+
+        pdo = ParsedDocumentsFourForums(self.tf, 'gun control', 'opposes strict gun control',
+                                        'prefers strict gun control',
+                                        self.database, self.host, self.user, self.password)
+        limit = 40
+        pdo.set_result_limit(limit)
+        pdo.stance_agreement_cutoff = 1  # disable the inter-annotator cutoff
+        pdo.extract_negations = True
+        pdo.spacy_model = 'en_core_web_trf'
+        pdo.process_corpus()
+        stemmer = SnowballStemmer(language='english')
+
+        context_generator = GenerateSentencesAndContexts('gun', 6, stemmer)
+        contexts_by_docid = [context_generator.generate(doc) for doc in pdo.all_docs]
+
+        pickled = pickle.dumps(contexts_by_docid)
+
+        self.assertTrue(pickled)
 
     def test_document_sentence_iterators(self):
         """

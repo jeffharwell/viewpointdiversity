@@ -17,7 +17,7 @@ class ExtractContexts:
 
         :param parseddocuments_obj: An instance of ParsedDocuments which contains a Spacy parse of the corpus
         :param context_size: the number of valid tokens before and after the context to extract
-        :param terms_to_extract: A dictionay with contexts to extract. The terms from each entry will be extracted
+        :param terms_to_extract: A dictionary with contexts to extract. The terms from each entry will be extracted
                                  at the same time. Of the form
                                  {'context_label':[term1, term2 ..], 'context_label2':[term1, term2, ..], ..}
         """

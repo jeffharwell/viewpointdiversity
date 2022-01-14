@@ -45,7 +45,7 @@ class ContextAndEntities:
         """
 
         self.sentence_as_string = str(sentence_span)
-        self.sentence_as_tokens = [t for t in sentence_span]
+        self.sentence_as_tokens = [t.text for t in sentence_span]
         self.context_tokens = context_tokens
         self.context_start = context_start
         self.context_end = context_end
@@ -190,12 +190,6 @@ def compute_avg_negation_difference(sent_and_contexts1, sent_and_contexts2):
     Note that this might need to be modified by the Word Mover Distance (WMD). If two sentences have a
     low WMD then a difference in negation likely means that there is a distinct difference in meaning, however, if the
     two sentences have a relatively large WMD then the effect of the negations is less defined in terms of meaning.
-
-    Currently filtering the entities by context is broken because the context boundaries coming out of the
-    SentencesAndContexts object are posting token filtering, but the entity start and end are pre token filtering,
-    and currently I don't have a way to reconcile those. I'd like to compute the start and end of the context
-    pre-filtering in the SentenceAndContexts object but I'm not quite sure how to do it robustly yet. If this
-    methodology shows promise I will figure that part out.
 
     :param sent_and_contexts1: the SentenceAndContexts object from document 1
     :param sent_and_contexts2: the SentenceAndContexts object from document 2

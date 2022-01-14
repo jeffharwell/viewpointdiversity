@@ -100,6 +100,40 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
             for e in d.ents:
                 print(e.text, e._.negex)
 
+    def test_negation_and_tokenize(self):
+        """
+        Should throw a runtime error if you try to extract negations but only tokenize the documents.
+        """
+        pdo = ParsedDocumentsFourForums(self.tf, 'gun control', 'opposes strict gun control',
+                                        'prefers strict gun control',
+                                        self.database, self.host, self.user, self.password)
+        limit = 40
+        pdo.set_result_limit(limit)
+        pdo.extract_negations = True
+        pdo.tokenize_only = True
+        pdo.spacy_model = 'en_core_web_trf'
+        with self.assertRaises(RuntimeError):
+            pdo.process_corpus()
+
+    def test_tokenize_only(self):
+        """
+        If you set 'tokenize_only' to True it should disable all components in the pipeline and
+        just tokenize the documents.
+        """
+        pdo = ParsedDocumentsFourForums(self.tf, 'gun control', 'opposes strict gun control',
+                                        'prefers strict gun control',
+                                        self.database, self.host, self.user, self.password)
+        limit = 40
+        pdo.set_result_limit(limit)
+        pdo.tokenize_only = True
+        pdo.spacy_model = 'en_core_web_trf'
+        pdo.process_corpus()
+        for d in pdo.all_docs:
+            for t in d:
+                self.assertEqual(t.pos_, '')
+                self.assertIsInstance(t.is_space, bool)
+                self.assertIsInstance(t.is_punct, bool)
+
     def test_continuous_target(self):
         """
         Tests the option to add Negex to the Spacy pipeline by setting an attribute
@@ -145,6 +179,7 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
                                         self.database, self.host, self.user, self.password)
         limit = 100
         pdo.set_result_limit(limit)
+        pdo.spacy_model = 'en_core_web_trf'
         self.assertTrue(pdo.is_limited)
 
         # Get the last line of the query, watch out for that ending newline which might be there

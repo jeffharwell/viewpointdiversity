@@ -46,6 +46,7 @@ class ParsedDocumentsFourForums:
 
         # Add negation extraction to the Spacy NLP pipeline when processing documents
         self.extract_negations = False
+        self.tokenize_only = False
         self.spacy_model = 'en_core_web_lg'
 
         self.query = """
@@ -205,19 +206,27 @@ class ParsedDocumentsFourForums:
 
         self.all_docs[] - list of Spacy doc objects, corresponds the order of self.text and self.target
         """
+        if self.extract_negations and self.tokenize_only:
+            raise RuntimeError("You cannot extract negations if you are only tokenizing the document.")
+
         # Get the corpus from the data source, this will load the self.text list
         self._get_corpus()
 
         # Set up Spacy
         torch.set_num_threads(1)  # works around a Spacy bug
+        disabled_components = list()
         nlp = spacy.load(self.spacy_model)
         if self.extract_negations:
             ts = termset("en")
             nlp.add_pipe("negex", config={"neg_termset": ts.get_patterns()})
+        elif self.tokenize_only:
+            # In Spacy the tokenizer is not a distinct component. So by disabled all components we are telling
+            # Spacy to tokenize the text into a document and return it, don't do any further processing.
+            disabled_components = [c[0] for c in nlp.pipeline]
 
         # Parse the Documents and put the parse in self.all_docs
         print("Loading %s documents" % len(self.text))
-        doc_list = nlp.pipe(self.text, n_process=4)
+        doc_list = nlp.pipe(self.text, n_process=4, disable=disabled_components)
 
         for doc in doc_list:
             self.all_docs.append(doc)
