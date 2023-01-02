@@ -1,3 +1,6 @@
+.idea/VDD_Algorithm_Package.iml
+.idea/misc.xml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -133,3 +136,4 @@ config.ini
 /src/scripts/fil-result/
 *.pickle
 /src/scripts/svm_models/*
+
