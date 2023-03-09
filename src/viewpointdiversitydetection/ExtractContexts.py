@@ -81,11 +81,11 @@ class ExtractContexts:
     def _get_contexts_for_multiple_terms(self, document, document_index, match_terms):
         """
         Method which uses the collectors to get the contexts for the given terms. This
-        is version two of the function and it can efficiently extract contexts for multiple
+        is version two of the function. It can now efficiently extract contexts for multiple
         terms in a single sweep.
 
         Eventually I would like to remove the dependency on the Spacy methods for the
-        internals of this function, but that isn't necessarily a immediate design goal.
+        internals of this function, but that isn't necessarily an immediate design goal.
 
         Returns a list of TermContext objects each containing contexts extracted from a matching term.
 
@@ -115,7 +115,7 @@ class ExtractContexts:
                 # Bug fix.
                 # We moved the trailing_tokens.collect to below the creation of a new extraction
                 # If it is above that occasionally a new term will match right on the last token
-                # being extracted. If we call .collect first then .isCollecting() will be false
+                # being extracted. If we call .collect first then .isCollecting() will be false,
                 # although we did collect the token in question, and our extracted_contexts object
                 # has not been updated, so we end up collected a duplicate context.
                 # The extracted_contexts object ends up looking like this the below, which we don't want
@@ -135,8 +135,8 @@ class ExtractContexts:
                 # but haven't gathered enough context for it. Since this token will be extracted anyways no need
                 # to see if it matches any other terms.
                 #
-                # Not that TrackTrailingContext is designed to be able to collect multiple contexts at the same time
-                # by not attempting a match when it is still collecting from the last match we constraining the
+                # Not that TrackTrailingContext is designed to be able to collect multiple contexts at the same time.
+                # By not attempting a match when it is still collecting from the last match we are constraining the
                 # algorithm to collect only one context at a time.
                 if not extracted_contents.has_been_extracted(document_index, token_idx) and not was_collected:
                     token_stem = stemmer.stem(token.text)
@@ -160,7 +160,7 @@ class ExtractContexts:
         leading_by_trigger = leading_tokens.return_leading_contexts()
         trailing_by_trigger = trailing_tokens.return_trailing_contexts()
         # We create a context object per stem we are looking for
-        # so that we can gather up the leading and trailing contexts
+        # so that we can gatherup the leading and trailing contexts
         # context_objs = TermContext(match_term)
         context_objs = {}
         for ms in match_stems:

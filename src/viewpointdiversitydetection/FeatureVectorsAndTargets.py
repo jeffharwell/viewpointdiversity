@@ -64,7 +64,23 @@ class FeatureVectorsAndTargets:
         #
         # Create the Word2Vec Features
         #
-        w2v_obj = Word2VecFeatureGenerator(self.vector_model)
+        def get_w2v_obj(vm):
+            # Figure out which embedding generator to use by the name of the object that got
+            # passed as the vector_model.
+            if vm.__class__.__name__ == 'KeyedVectors':
+                # This is a Gensim vector model, create the w2v_obj
+                # using the Word2VecFeatureGenerator
+                w2v_obj = Word2VecFeatureGenerator(self.vector_model)
+                return w2v_obj
+            elif vm.__class__.__name__ == 'BertFeatureGenerator':
+                # We've been passed a BertFeatureGenerator, it has the
+                # same interface as a Word2VecFeatureGenerator, so just us it
+                return vm
+            else:
+                RuntimeError(f"We don't know how to handle a {vm.__class__.__name__}. "
+                             f"Either pass a Gensim vector model or a BertFeatureGenerator object")
+
+        w2v_obj = get_w2v_obj(self.vector_model)
         w2v_obj.exclude_zeros_from_averages()  # don't include zero vectors when computing the vector averages
         search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('search'))
         related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('related'))
