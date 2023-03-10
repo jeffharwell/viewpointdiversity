@@ -4,8 +4,6 @@ import tensorflow_hub as hub
 import tensorflow_text as text
 
 
-
-
 class BertFeatureGenerator:
     def __init__(self, bert_preprocess, bert_model, output_shape):
         if not bert_preprocess or not bert_model:
@@ -121,6 +119,11 @@ class BertFeatureGenerator:
             #print(results["pooled_output"].numpy())
             #vectors = vectors + results["pooled_output"].numpy()[1]
             vectors.append(results["pooled_output"].numpy()[0])
+        # We need to clear the keras session or Keras will hold onto global state and will eventually
+        # run out of RAM if we process enough contexts. However, we don't want to do this every loop
+        # as it slows things down quite a bit.
+        # https://www.tensorflow.org/api_docs/python/tf/keras/backend/clear_session
+        tf.keras.backend.clear_session()
 
         # Check for undefined values (shouldn't be any for BERT, I think)
         for v in vectors:
