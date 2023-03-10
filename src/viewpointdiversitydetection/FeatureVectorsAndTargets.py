@@ -76,6 +76,10 @@ class FeatureVectorsAndTargets:
                 # We've been passed a BertFeatureGenerator, it has the
                 # same interface as a Word2VecFeatureGenerator, so just us it
                 return vm
+            elif vm.__class__.__name__ == 'SBertFeatureGenerator':
+                # We've been passed an SBertFeatureGenerator object, it has the
+                # same interface as a Word2VecFeatureGenerator
+                return vm
             else:
                 RuntimeError(f"We don't know how to handle a {vm.__class__.__name__}. "
                              f"Either pass a Gensim vector model or a BertFeatureGenerator object")

@@ -5,6 +5,7 @@ from .FindCharacteristicKeywords import *
 from .SentimentFeatureGenerator import *
 from .Word2VecFeatureGenerator import *
 from .BertFeatureGenerator import *
+from .SBertFeatureGenerator import *
 from .FeatureVectorsAndTargets import *
 from .ExtractContexts import *
 from .TopAndBottomMetric import *
