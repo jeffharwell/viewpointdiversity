@@ -26,7 +26,8 @@ class FindCharacteristicKeywords:
         if len(self.pdo.all_docs) == 0:
             raise ValueError("ParsedDocument object contains no parsed documents.")
 
-    def _get_context_for_multiple_terms(self, document, document_index, match_terms, context_size, token_filter):
+    def _get_context_for_multiple_terms(self, document, document_index, match_terms, context_size,
+                                        token_filter, context_label):
         """
         Function which uses the collectors to get the contexts for the given terms. This
         is version two of the function and it can efficiently extract contexts for multiple
@@ -45,6 +46,7 @@ class FindCharacteristicKeywords:
                                    is only applied when we actually return the context. Put another way token_filter
                                    is applied after 'content_size' tokens have been collected and before the contexts
                                    are returned.
+        :param context_label: the label for the contexts we are extracting
         """
         stemmer = self.stemmer
         extracted_contents = self.extracted_contexts
@@ -116,16 +118,17 @@ class FindCharacteristicKeywords:
                 trailing_index = trailing_by_trigger[t]['ending_index']
             if len(leading) != 0 or len(trailing) != 0:
                 context_objects[stem].add_context(leading, trailing)
-                extracted_contents.record_extraction(document_index, t, leading_index, trailing_index)
+                extracted_contents.record_extraction(document_index, t, leading_index, trailing_index, context_label)
 
         # Return a list of TermContext objects, each having all the contexts for each of the matching terms
         # in the document. But only if we actually grabbed any context for that term.
         return [co for co in context_objects.values() if co.has_context()]
 
-    def get_unique_nouns_from_term_context(self, terms):
+    def get_unique_nouns_from_term_context(self, terms, context_label):
         """
 
-        :param terms:
+        :param terms: the list of terms to extract the contexts for
+        :param context_label: the label for the contexts we are extracting
         :return:
         """
         # Grab the stem to doc index and the list of all parsed documents
@@ -156,7 +159,8 @@ class FindCharacteristicKeywords:
         all_nouns = []
         for doc_idx in matching_doc_indexes:
             doc = all_docs[doc_idx]
-            contexts = self._get_context_for_multiple_terms(doc, doc_idx, terms, 4, noun_token_filter)
+
+            contexts = self._get_context_for_multiple_terms(doc, doc_idx, terms, 4, noun_token_filter, context_label)
             for context in contexts:
                 nouns_from_contexts = []
                 for n in context.contexts:

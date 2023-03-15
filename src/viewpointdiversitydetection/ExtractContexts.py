@@ -30,7 +30,7 @@ class ExtractContexts:
         # {context_label: {doc_id: [TermContext1, TermContext2, ..], ..}, context_label2: ...}
 
         for c in self.terms_to_extract.keys():
-            self.contexts[c] = self._get_contexts(terms_to_extract[c])
+            self.contexts[c] = self._get_contexts(terms_to_extract[c], c)
 
     def get_contexts_by_doc_id_for(self, context_label):
         """
@@ -43,13 +43,14 @@ class ExtractContexts:
 
         return self.contexts[context_label]
 
-    def _get_contexts(self, terms):
+    def _get_contexts(self, terms, context_label):
         """
         Wrapper attribute whose main purpose is to use the stem to doc index to prepare a list
         of matching documents and then iterate through that list calling _get_contexts_for_multiple_terms
         for each matching document.
 
         :param terms: a list of terms for which to extract contexts from the corpus
+        :param context_label: the label of the context that these terms are from
         """
 
         # This is an optimization. The ParsedDocuments object provides access to a CorpusAsStems object
@@ -72,13 +73,13 @@ class ExtractContexts:
         # for doc_idx, doc in enumerate(all_docs):
         for doc_idx in matching_doc_indexes:
             doc = self.pd_obj.all_docs[doc_idx]
-            context_by_doc_index[doc_idx] = self._get_contexts_for_multiple_terms(doc, doc_idx, terms)
+            context_by_doc_index[doc_idx] = self._get_contexts_for_multiple_terms(doc, doc_idx, terms, context_label)
 
         # we return a dictionary keyed by document index, each value is a list of TermContext objects
         # representing the contexts extracted from the document.
         return context_by_doc_index
 
-    def _get_contexts_for_multiple_terms(self, document, document_index, match_terms):
+    def _get_contexts_for_multiple_terms(self, document, document_index, match_terms, context_label):
         """
         Method which uses the collectors to get the contexts for the given terms. This
         is version two of the function. It can now efficiently extract contexts for multiple
@@ -93,6 +94,7 @@ class ExtractContexts:
         :param document_index: The index number of the document we are processing, needed by the
                                extracted_contents object.
         :param match_terms: A list of terms that we are searching the document for
+        :param context_label: the label of the context that these terms are from
         """
         # Map our object variables into some local contexts, this made the port from the function easier :)
         context_size = self.context_size
@@ -180,7 +182,7 @@ class ExtractContexts:
                 trailing_index = trailing_by_trigger[t]['ending_index']
             if len(leading) != 0 or len(trailing) != 0:
                 context_objs[stem].add_context(leading, trailing)
-                extracted_contents.record_extraction(document_index, t, leading_index, trailing_index)
+                extracted_contents.record_extraction(document_index, t, leading_index, trailing_index, context_label)
 
         # Return a list of TermContext objects, each having all the contexts for each of the matching terms
         # in the document. But only if we actually grabbed any context for that term.

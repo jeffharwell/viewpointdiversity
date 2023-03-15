@@ -34,6 +34,8 @@ class FeatureVectorsAndTargets:
         self.empty_sentiment_vector = [0.0]
         self.empty_word2vec_vector = [0.0]
 
+        self.pass_sentences_for_feature_extraction = False
+
     def create_feature_vectors_and_targets(self):
         """
         Instructs the object to create and store the feature vectors and their associated target classes. The
@@ -79,6 +81,7 @@ class FeatureVectorsAndTargets:
             elif vm.__class__.__name__ == 'SBertFeatureGenerator':
                 # We've been passed an SBertFeatureGenerator object, it has the
                 # same interface as a Word2VecFeatureGenerator
+                self.pass_sentences_for_feature_extraction = True  # It wants the full sentences
                 return vm
             else:
                 RuntimeError(f"We don't know how to handle a {vm.__class__.__name__}. "
@@ -86,8 +89,17 @@ class FeatureVectorsAndTargets:
 
         w2v_obj = get_w2v_obj(self.vector_model)
         w2v_obj.exclude_zeros_from_averages()  # don't include zero vectors when computing the vector averages
-        search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('search'))
-        related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('related'))
+        if self.pass_sentences_for_feature_extraction:
+            # We will pass the contexts pull the parsed document object so that the embedding generator
+            # has access to the full sentence, not just the extracted context tokens
+            search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(ec, 'search', self.pdo)
+            related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(ec, 'related', self.pdo)
+        else:
+            # The embedding generator just needs to extracted context tokens
+            search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(
+                ec.get_contexts_by_doc_id_for('search'))
+            related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(
+                ec.get_contexts_by_doc_id_for('related'))
 
         # We have to figure out the size of our feature vectors so that we can create empty
         # vectors of the right size.

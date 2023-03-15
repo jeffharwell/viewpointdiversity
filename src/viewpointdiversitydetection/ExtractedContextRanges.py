@@ -6,7 +6,7 @@ class ExtractedContextRanges:
     def __init__(self):
         self.extractions = {}
 
-    def record_extraction(self, doc_index, trigger_index, start_index, end_index):
+    def record_extraction(self, doc_index, trigger_index, start_index, end_index, context_label):
         """
         Record an extraction.
 
@@ -38,7 +38,9 @@ class ExtractedContextRanges:
         if not end_index:  # also might be None
             end_index = trigger_index
 
-        e = {'trigger_index': trigger_index, 'start_index': start_index, 'end_index': end_index}
+        e = {'trigger_index': trigger_index, 'start_index': start_index,
+             'end_index': end_index, 'context_label': context_label}
+
         if doc_index in self.extractions:
             self.extractions[doc_index].append(e)
         else:

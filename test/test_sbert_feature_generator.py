@@ -57,7 +57,7 @@ class SBertFeatureGeneratorTest(unittest.TestCase):
 
         fk = FindCharacteristicKeywords(pdo)
         print("\n-- Extracted nouns related to the search terms")
-        related_terms = fk.get_unique_nouns_from_term_context(search_terms)
+        related_terms = fk.get_unique_nouns_from_term_context(search_terms, 'search')
 
         #
         # Now Create the Feature Vector Object
