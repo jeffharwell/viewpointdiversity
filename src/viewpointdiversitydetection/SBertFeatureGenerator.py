@@ -70,7 +70,7 @@ class SBertFeatureGenerator:
         #print(f"Running generate_feature_vectors_from_sentences for context '{context_label}'")
         # There are some contexts, create our vector
         doc_idx_to_vector = {}
-        for doc_idx in extract_contexts.contexts[context_label]:
+        for doc_idx in extract_contexts.ex.extractions:  # iterate through every document we have an extraction from
             vectors = []
             sentences_by_hash = {}
             parsed_document = parsed_documents_object.all_docs[doc_idx]
@@ -197,13 +197,15 @@ class SBertFeatureGenerator:
 
         :param sentences: a list of sentences as strings
         """
-        if not len(sentences) > 0:
-            print("Warning: called getVector on an empty set of sentences")
+        vectors = []
+
+        if len(sentences) == 0:
+            print("Warning: called getVector on an empty set of sentences. Returning zeros vector")
+            vectors.append(np.zeros(self.vector_size))
 
         # Get all the tokens from our contexts, put them into space delimited string
         # then pass that to Bart and pull the value of the pooled_output to get the
         # embedding
-        vectors = []
         for sentence in sentences:
             vectors.append(self.bert_model.encode(sentence))
 
