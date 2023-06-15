@@ -181,9 +181,43 @@ class ExtractContexts:
                 trailing = trailing_by_trigger[t]['token_text_list']
                 trailing_index = trailing_by_trigger[t]['ending_index']
             if len(leading) != 0 or len(trailing) != 0:
-                context_objs[stem].add_context(leading, trailing)
+                context_objs[stem].add_context_with_indices(leading, trailing, leading_index, trailing_index,
+                                                            self.get_sentence_indexes_from_token_range(leading_index,
+                                                                                                       trailing_index,
+                                                                                                       document)
+                                                            )
                 extracted_contents.record_extraction(document_index, t, leading_index, trailing_index, context_label)
 
         # Return a list of TermContext objects, each having all the contexts for each of the matching terms
         # in the document. But only if we actually grabbed any context for that term.
         return [co for co in context_objs.values() if co.has_context()]
+
+    def get_sentence_indexes_from_token_range(self, start_doc_token_idx, end_doc_token_idx, doc):
+        """
+        Given a beginning and ending token this function uses the Spacy parsed
+        document to find and return the sentences that contain that range of
+        tokens.
+
+        :param start_doc_token_idx: the token index that marks the beginning of the range
+        :param end_doc_token_idx:  the token index that marks the end of the range
+        :param doc: the document as a Spacy object
+        :return: A list of spacy sentences
+        """
+        if start_doc_token_idx >= end_doc_token_idx:
+            raise RuntimeError("The ending token index cannot be greater than or equal to the starting token index")
+        start_sentence_idx = 0
+        end_sentence_idx = 0
+        doc_token_idx = 0
+        for i, s in enumerate(doc.sents):
+            for t in s:
+                # t contains the token, but we ignore that, we are only interested in the token index in document
+                # which is being kept track of in doc_token_index
+                if doc_token_idx == start_doc_token_idx:
+                    start_sentence_idx = i
+                # The starting token index and ending token index can be the same token
+                # so this is an 'if' not an 'elsif'.
+                if doc_token_idx == end_doc_token_idx - 1:
+                    end_sentence_idx = i
+                doc_token_idx += 1
+        # print(start_sentence_idx, end_sentence_idx)
+        return list(range(start_sentence_idx, end_sentence_idx + 1))

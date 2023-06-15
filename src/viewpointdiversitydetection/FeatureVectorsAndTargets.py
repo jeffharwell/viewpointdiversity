@@ -24,6 +24,8 @@ class FeatureVectorsAndTargets:
         self.search_terms = search_terms
         self.related_terms = related_terms
         self.context_size = context_size
+        self.contexts = []  # contexts indexed by term to extract then the document index number
+        # {context_label: {doc_id: [TermContext1, TermContext2, ..], ..}, context_label2: ...}
 
         self.feature_vectors = []
         self.feature_vectors_as_components = []
@@ -47,6 +49,7 @@ class FeatureVectorsAndTargets:
         #
         terms_for_extraction = {'search': self.search_terms, 'related': self.related_terms}
         ec = ExtractContexts(self.pdo, self.context_size, terms_for_extraction)
+        self.contexts = ec.contexts  # save the details for the contexts we extracted
         number_of_search_contexts = sum([len(c) for c in ec.get_contexts_by_doc_id_for('search').values()])
         number_of_related_contexts = sum([len(c) for c in ec.get_contexts_by_doc_id_for('related').values()])
         print(f"{number_of_search_contexts} search contexts extracted")
@@ -92,8 +95,10 @@ class FeatureVectorsAndTargets:
         if self.pass_sentences_for_feature_extraction:
             # We will pass the contexts pull the parsed document object so that the embedding generator
             # has access to the full sentence, not just the extracted context tokens
-            search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(ec, 'search', self.pdo)
-            related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(ec, 'related', self.pdo)
+            search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(self.contexts,
+                                                                                                'search', self.pdo)
+            related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(self.contexts,
+                                                                                                 'related', self.pdo)
         else:
             # The embedding generator just needs to extracted context tokens
             search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(

@@ -117,7 +117,11 @@ class FindCharacteristicKeywords:
                 trailing = trailing_by_trigger[t]['token_text_list']
                 trailing_index = trailing_by_trigger[t]['ending_index']
             if len(leading) != 0 or len(trailing) != 0:
-                context_objects[stem].add_context(leading, trailing)
+                sentence_indices = self.get_sentence_indexes_from_token_range(leading_index,
+                                                                              trailing_index,
+                                                                              document)
+                context_objects[stem].add_context_with_indices(leading, trailing, leading_index, trailing_index,
+                                                               sentence_indices)
                 extracted_contents.record_extraction(document_index, t, leading_index, trailing_index, context_label)
 
         # Return a list of TermContext objects, each having all the contexts for each of the matching terms
@@ -183,3 +187,29 @@ class FindCharacteristicKeywords:
         print("Extracted from %s total documents" % len(documents_with_extractions))
         coverage = len(documents_with_extractions) / len(all_docs)
         print("Extraction coverage: %.4f percent" % coverage)
+
+    def get_sentence_indexes_from_token_range(self, start_doc_token_idx, end_doc_token_idx, doc):
+        """
+        Given a beginning and ending token this function uses the Spacy parsed
+        document to find and return the sentences that contain that range of
+        tokens.
+
+        :param start_doc_token_idx: the token index that marks the beginning of the range
+        :param end_doc_token_idx:  the token index that marks the end of the range
+        :param doc: the document as a Spacy object
+        :return: A list of spacy sentences
+        """
+
+        start_sentence_idx = 0
+        end_sentence_idx = 0
+        doc_token_idx = 0
+        for i, s in enumerate(doc.sents):
+            for t in s:
+                if doc_token_idx == start_doc_token_idx:
+                    start_sentence_idx = i
+                elif doc_token_idx == end_doc_token_idx - 1:
+                    end_sentence_idx = i
+                doc_token_idx += 1
+        # print(start_sentence_idx, end_sentence_idx)
+        return list(range(start_sentence_idx, end_sentence_idx + 1))
+

@@ -62,30 +62,29 @@ class SBertFeatureGenerator:
         Generate the feature vectors for the document using the full sentence from the processed documents
         as opposed to just using the pre-processed, stopword filtered, tokens from the context.
 
-        :param extract_contexts: an ExtractContexts object, contains the contexts we extracted from the document
+        :param extract_contexts: dictionary of extracted TermContext objects by context label and docid
         :param context_label: the label used to identify the set of extracted contexts
         :param parsed_documents_object: a ParsedDocuments Object (usually ParsedDocumentsFourForums)
         :return: dictionary with document id as the key and an average SBERT embedding representing the context
         """
         #print(f"Running generate_feature_vectors_from_sentences for context '{context_label}'")
         # There are some contexts, create our vector
+
+        # extract_contexts dictionary is of the form
+        # {context_label: {doc_id: [TermContext1, TermContext2, ..], ..}, context_label2: ...}
+
         doc_idx_to_vector = {}
-        for doc_idx in extract_contexts.ex.extractions:  # iterate through every document we have an extraction from
+        # Iterate through every document that has an extraction
+        for doc_idx, term_contexts in extract_contexts[context_label].items():
             vectors = []
             sentences_by_hash = {}
             parsed_document = parsed_documents_object.all_docs[doc_idx]
 
-            # go through every extraction that we have for the document,
-            # extract the ones that match our context label, then get the
-            # unique sentences contained, even partially, in the extraction.
-            for extraction in extract_contexts.ex.extractions[doc_idx]:
-                # extraction is a dictionary of form
-                # {'trigger_index': trigger_index, 'start_index': start_index,
-                #  'end_index': end_index, 'context_label': context_label}
-                # I didn't index the extractions by context label, just by doc_id, so we need to filter
-                # out any extractions that are attached to a different context label
-                if extraction['context_label'] == context_label:
-                    sentences = self.get_sentences(extraction['start_index'], extraction['end_index'], parsed_document)
+            # for every extracted context grab the sentences that correspond to
+            # the sentence indices
+            for term_context in term_contexts:
+                for sentence_indices in term_context.sentence_indices:
+                    sentences = self.get_sentences_from_indicies(sentence_indices)
                     for s in sentences:
                         # We only want unique sentences. Because we are moving from contexts to sentences
                         # it is possible that two contexts contain part of the same sentence, and we don't want
@@ -94,7 +93,7 @@ class SBertFeatureGenerator:
                         if sentence_hash not in sentences_by_hash:
                             # this one is new, add it, keyed by hash, to our dict of sentences
                             sentences_by_hash[sentence_hash] = s.text
-                            #print(s.text)
+                            # print(s.text)
 
             # Get the Sentence Bert Embedding for each sentence and add it to our list of vectors
             vectors.append(self._get_vector_from_term_sentences(sentences_by_hash.values()))
@@ -172,21 +171,18 @@ class SBertFeatureGenerator:
 
         return avg_of_all_vectors
 
-    def get_sentences(self, start_doc_token_idx, end_doc_token_idx, doc):
-        start_sentence_idx = 0
-        end_sentence_idx = 0
-        doc_token_idx = 0
-        for i, s in enumerate(doc.sents):
-            for t in s:
-                if doc_token_idx == start_doc_token_idx:
-                    start_sentence_idx = i
-                elif doc_token_idx == end_doc_token_idx - 1:
-                    end_sentence_idx = i
-                doc_token_idx += 1
-        # print(start_sentence_idx, end_sentence_idx)
+    def get_sentences_from_indicies(self, sentence_indices, doc):
+        """
+        Takes a list of sentence indicies and returns a list of Spacy sentence objects
+
+        :param sentence_indices: a list of integers representing sentences in the document
+        :param doc: the document as a Spacy object
+        :return: a list of sentences as Spacy spans
+        """
         text = list()
+        # doc.sents is a generator, so we can't just snag the sentence by index, we have to iterate
         for i, sentence in enumerate(doc.sents):
-            if i in list(range(start_sentence_idx, end_sentence_idx + 1)):
+            if i in sentence_indices:
                 text.append(sentence)
         return text
 
