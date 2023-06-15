@@ -85,6 +85,79 @@ class SBertFeatureGeneratorTest(unittest.TestCase):
         just_w2v = fvt.feature_vectors[0][len_sentiment:]
         self.assertTrue(np.array_equal(combined_array, just_w2v))
 
+    def test_printing_embedding_sentences(self):
+        """
+        Can we print out the sentences that were used to create the embeddings
+
+        :return:
+        """
+        """
+        This is basically our end-to-end test case. Take some data from the database and create feature vectors
+        from those documents. The test uses a smaller word2vec model for speed.
+        """
+
+        #
+        # Retrieve and parse the documents then get the related terms
+        #
+        tf = TokenFilter()
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+
+        user = config['InternetArgumentCorpus']['username']
+        password = config['InternetArgumentCorpus']['password']
+        host = config['InternetArgumentCorpus']['host']
+        database = 'fourforums'
+
+        pdo = ParsedDocumentsFourForums(tf, 'climate change', 'humans not responsible',
+                                        'humans responsible', database, host, user, password)
+        pdo.set_result_limit(10)
+        pdo.process_corpus()
+        search_terms = ['human', 'responsible', 'climate', 'change']
+
+        fk = FindCharacteristicKeywords(pdo)
+        print("\n-- Extracted nouns related to the search terms")
+        related_terms = fk.get_unique_nouns_from_term_context(search_terms, 'search')
+
+        #
+        # Now Create the Feature Vector Object
+        #
+        # vector_model = api.load('fasttext-wiki-news-subwords-300')
+        w2v_obj = SBertFeatureGenerator(False, False)
+        context_size = 6
+
+        fvt = FeatureVectorsAndTargets(pdo, w2v_obj, search_terms, related_terms, context_size)
+        fvt.create_feature_vectors_and_targets()
+        print("First Feature Vector")
+        print(fvt.feature_vectors[0])
+        print("First Target Class")
+        print(fvt.targets_for_features[0])
+        print(f"Created {len(fvt.feature_vectors)} feature vectors.")
+        self.assertTrue(len(fvt.feature_vectors) > 0)
+        self.assertTrue(len(fvt.targets_for_features) > 0)
+
+        contexts = fvt.contexts
+        first_search_contexts = contexts['search'][0]
+        print("\n## Printing Sentences Corresponding to Search Contexts from the First Document\n")
+        for context in first_search_contexts:
+            print(f"Matching Stem: {context.term}")
+            print(f"Matched {len(context.contexts)} contexts")
+            for s_i in context.sentence_indices:
+                print(s_i)
+                for i, sent in enumerate(pdo.all_docs[0].sents):
+                    if i in s_i:
+                        print(f"{i}: {sent.text}")
+
+        first_related_contexts = contexts['related'][0]
+        print("\n## Printing Sentences Corresponding to Related Contexts from the First Document\n")
+        for context in first_related_contexts:
+            print(f"Matching Stem: {context.term}")
+            print(f"Matched {len(context.contexts)} contexts")
+            for s_i in context.sentence_indices:
+                print(s_i)
+                for i, sent in enumerate(pdo.all_docs[0].sents):
+                    if i in s_i:
+                        print(f"{i}: {sent.text}")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -84,7 +84,7 @@ class SBertFeatureGenerator:
             # the sentence indices
             for term_context in term_contexts:
                 for sentence_indices in term_context.sentence_indices:
-                    sentences = self.get_sentences_from_indicies(sentence_indices)
+                    sentences = self.get_sentences_from_indicies(sentence_indices, parsed_document)
                     for s in sentences:
                         # We only want unique sentences. Because we are moving from contexts to sentences
                         # it is possible that two contexts contain part of the same sentence, and we don't want

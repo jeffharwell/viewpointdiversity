@@ -182,7 +182,8 @@ class ExtractContexts:
                 trailing_index = trailing_by_trigger[t]['ending_index']
             if len(leading) != 0 or len(trailing) != 0:
                 context_objs[stem].add_context_with_indices(leading, trailing, leading_index, trailing_index,
-                                                            self.get_sentence_indexes_from_token_range(leading_index,
+                                                            self.get_sentence_indexes_from_token_range(t,
+                                                                                                       leading_index,
                                                                                                        trailing_index,
                                                                                                        document)
                                                             )
@@ -192,7 +193,7 @@ class ExtractContexts:
         # in the document. But only if we actually grabbed any context for that term.
         return [co for co in context_objs.values() if co.has_context()]
 
-    def get_sentence_indexes_from_token_range(self, start_doc_token_idx, end_doc_token_idx, doc):
+    def get_sentence_indexes_from_token_range(self, token_idx, start_doc_token_idx, end_doc_token_idx, doc):
         """
         Given a beginning and ending token this function uses the Spacy parsed
         document to find and return the sentences that contain that range of
@@ -203,6 +204,12 @@ class ExtractContexts:
         :param doc: the document as a Spacy object
         :return: A list of spacy sentences
         """
+        if not start_doc_token_idx:
+            # A match at the start of the document, so the start token index is the token index of the trigger word
+            start_doc_token_idx = token_idx
+        elif not end_doc_token_idx:
+            # A match at the end of the document, so the end token index is the token index of the trigger word
+            end_doc_token_idx = token_idx
         if start_doc_token_idx >= end_doc_token_idx:
             raise RuntimeError("The ending token index cannot be greater than or equal to the starting token index")
         start_sentence_idx = 0
