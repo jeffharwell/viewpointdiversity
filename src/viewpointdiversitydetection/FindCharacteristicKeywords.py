@@ -4,6 +4,7 @@ from nltk.corpus import stopwords
 from viewpointdiversitydetection.TokenFilter import NounTokenFilter
 from viewpointdiversitydetection.ExtractedContextRanges import ExtractedContextRanges
 from viewpointdiversitydetection.TermContext import TermContext
+from viewpointdiversitydetection.ExtractContexts import ExtractContexts
 from viewpointdiversitydetection.TrackLeadingContext import TrackLeadingContext
 from viewpointdiversitydetection.TrackTrailingContext import TrackTrailingContext
 
@@ -26,8 +27,8 @@ class FindCharacteristicKeywords:
         if len(self.pdo.all_docs) == 0:
             raise ValueError("ParsedDocument object contains no parsed documents.")
 
-    def _get_context_for_multiple_terms(self, document, document_index, match_terms, context_size,
-                                        token_filter, context_label):
+    def _xx_get_context_for_multiple_terms(self, document, document_index, match_terms, context_size,
+                                           token_filter, context_label):
         """
         Function which uses the collectors to get the contexts for the given terms. This
         is version two of the function and it can efficiently extract contexts for multiple
@@ -128,11 +129,12 @@ class FindCharacteristicKeywords:
         # in the document. But only if we actually grabbed any context for that term.
         return [co for co in context_objects.values() if co.has_context()]
 
-    def get_unique_nouns_from_term_context(self, terms, context_label):
+    def get_unique_nouns_from_term_context(self, terms, context_label, context_size=4):
         """
 
         :param terms: the list of terms to extract the contexts for
         :param context_label: the label for the contexts we are extracting
+        :param context_size: the number of tokens of context to consider when extracting nouns, defaults to 4
         :return:
         """
         # Grab the stem to doc index and the list of all parsed documents
@@ -143,12 +145,20 @@ class FindCharacteristicKeywords:
         stop_words = self.stop_words
 
         noun_token_filter = NounTokenFilter()
+        # We will use the ExtractContexts logic, but we only want to extract from
+        # certain documents, so initialize the object here and use the context extraction
+        # method below in the loop over the matching documents.
+        ec = ExtractContexts(self.pdo, context_size, noun_token_filter)
 
         def get_nouns(context_dict):
             leading_nouns = [noun for noun in context_dict['leading_tokens']]
             trailing_nouns = [noun for noun in context_dict['trailing_tokens']]
             return leading_nouns + trailing_nouns
 
+        #
+        # First create a list of matching documents
+        # so that we don't spend time running the context extraction against documents
+        # that have no match to our terms.
         matching_doc_indexes = []
         for t in terms:
             s = stemmer.stem(t)
@@ -160,11 +170,13 @@ class FindCharacteristicKeywords:
         matching_doc_indexes.sort()
         print("Searching %s documents which contain matching stems" % len(matching_doc_indexes))
 
+        # Now go through each of the matching documents and extract the contexts
         all_nouns = []
         for doc_idx in matching_doc_indexes:
             doc = all_docs[doc_idx]
 
-            contexts = self._get_context_for_multiple_terms(doc, doc_idx, terms, 4, noun_token_filter, context_label)
+            # contexts = self._get_context_for_multiple_terms(doc, doc_idx, terms, 4, noun_token_filter, context_label)
+            contexts = ec.get_contexts_for_multiple_terms(doc, doc_idx, terms, context_label)
             for context in contexts:
                 nouns_from_contexts = []
                 for n in context.contexts:
@@ -188,7 +200,7 @@ class FindCharacteristicKeywords:
         coverage = len(documents_with_extractions) / len(all_docs)
         print("Extraction coverage: %.4f percent" % coverage)
 
-    def get_sentence_indexes_from_token_range(self, start_doc_token_idx, end_doc_token_idx, doc):
+    def xx_get_sentence_indexes_from_token_range(self, start_doc_token_idx, end_doc_token_idx, doc):
         """
         Given a beginning and ending token this function uses the Spacy parsed
         document to find and return the sentences that contain that range of

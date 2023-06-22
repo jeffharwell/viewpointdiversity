@@ -7,7 +7,7 @@ from viewpointdiversitydetection.TrackTrailingContext import TrackTrailingContex
 
 
 class ExtractContexts:
-    def __init__(self, parseddocuments_obj, context_size, terms_to_extract):
+    def __init__(self, parseddocuments_obj, context_size, token_filter=None):
         """
         Initialize the object, which will go ahead and extract contexts from the terms_to_extract
         parameter from the parsed documents found in parsedocuments_obj. Note that order is important here.
@@ -17,18 +17,35 @@ class ExtractContexts:
 
         :param parseddocuments_obj: An instance of ParsedDocuments which contains a Spacy parse of the corpus
         :param context_size: the number of valid tokens before and after the context to extract
-        :param terms_to_extract: A dictionary with contexts to extract. The terms from each entry will be extracted
-                                 at the same time. Of the form
-                                 {'context_label':[term1, term2 ..], 'context_label2':[term1, term2, ..], ..}
+        :param token_filter: A function that returns a boolean indicating if a certain taken should be included
+                                   in the context. Note that this does not affect the number of tokens we collect, it
+                                   is only applied when we actually return the context. Put another way token_filter
+                                   is applied after 'content_size' tokens have been collected and before the contexts
+                                   are returned. If no token_filter is passed then the object will use the token filter
+                                   that was used in parsing the corpus, parseddocuments_obj.token_filter
         """
         self.ex = ExtractedContextRanges()  # object to keep track of what contexts we have extracted
         self.pd_obj = parseddocuments_obj
         self.stemmer = SnowballStemmer(language='english')  # create our own instance here
         self.context_size = context_size
-        self.terms_to_extract = terms_to_extract
+        self.terms_to_extract = None
         self.contexts = {}  # contexts indexed by term to extract then the document index number
         # {context_label: {doc_id: [TermContext1, TermContext2, ..], ..}, context_label2: ...}
+        if token_filter:
+            self.token_filter = token_filter
+        else:
+            self.token_filter = parseddocuments_obj.token_filter
 
+    def extract_contexts(self, terms_to_extract):
+        """
+        Perform the actual extraction.
+
+        :param terms_to_extract: A dictionary with contexts to extract. The terms from each entry will be extracted
+                         at the same time. Of the form
+                         {'context_label':[term1, term2 ..], 'context_label2':[term1, term2, ..], ..}
+        :return: None, the extracted contexts are stored in the 'contexts' object variable.
+        """
+        self.terms_to_extract = terms_to_extract
         for c in self.terms_to_extract.keys():
             self.contexts[c] = self._get_contexts(terms_to_extract[c], c)
 
@@ -79,6 +96,26 @@ class ExtractContexts:
         # representing the contexts extracted from the document.
         return context_by_doc_index
 
+    def get_contexts_for_multiple_terms(self, document, document_index, match_terms, context_label):
+        """
+        Method which uses the collectors to get the contexts for the given terms. This
+        is version two of the function. It can now efficiently extract contexts for multiple
+        terms in a single sweep.
+
+        Eventually I would like to remove the dependency on the Spacy methods for the
+        internals of this function, but that isn't necessarily an immediate design goal.
+
+        Returns a list of TermContext objects each containing contexts extracted from a matching term.
+
+        :param document: A Spacy document
+        :param document_index: The index number of the document we are processing, needed by the
+                               extracted_contents object.
+        :param match_terms: A list of terms that we are searching the document for
+        :param context_label: the label of the context that these terms are from
+        :return: Return a list of TermContext objects
+        """
+        return self._get_contexts_for_multiple_terms(document, document_index, match_terms, context_label)
+
     def _get_contexts_for_multiple_terms(self, document, document_index, match_terms, context_label):
         """
         Method which uses the collectors to get the contexts for the given terms. This
@@ -95,10 +132,11 @@ class ExtractContexts:
                                extracted_contents object.
         :param match_terms: A list of terms that we are searching the document for
         :param context_label: the label of the context that these terms are from
+        :return: Return a list of TermContext objects
         """
         # Map our object variables into some local contexts, this made the port from the function easier :)
         context_size = self.context_size
-        token_filter = self.pd_obj.token_filter
+        token_filter = self.token_filter
         stemmer = self.stemmer
         extracted_contents = self.ex
 
@@ -204,10 +242,11 @@ class ExtractContexts:
         :param doc: the document as a Spacy object
         :return: A list of spacy sentences
         """
-        if not start_doc_token_idx:
+        # We check for None because 0 is a valid index
+        if start_doc_token_idx is None:
             # A match at the start of the document, so the start token index is the token index of the trigger word
             start_doc_token_idx = token_idx
-        elif not end_doc_token_idx:
+        elif end_doc_token_idx is None:
             # A match at the end of the document, so the end token index is the token index of the trigger word
             end_doc_token_idx = token_idx
         if start_doc_token_idx >= end_doc_token_idx:

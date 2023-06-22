@@ -57,10 +57,10 @@ class FindCharacteristicKeywordsTest(unittest.TestCase):
 
         fk = FindCharacteristicKeywords(pdo)
         print("\n-- Extracted nouns related to the search terms")
-        search_nouns = fk.get_unique_nouns_from_term_context(terms)
+        search_nouns = fk.get_unique_nouns_from_term_context(terms, 'search')
         self.assertTrue(len(search_nouns) > 0)
         print("\n-- Extracted nouns related to the related terms")
-        related_nouns = fk.get_unique_nouns_from_term_context(search_nouns)
+        related_nouns = fk.get_unique_nouns_from_term_context(search_nouns, 'related')
         self.assertTrue(len(related_nouns) > 0)
         print("")
         print(f"Search Nouns {len(search_nouns)}: {search_nouns}")

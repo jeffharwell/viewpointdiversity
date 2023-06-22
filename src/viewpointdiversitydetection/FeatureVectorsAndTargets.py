@@ -48,7 +48,8 @@ class FeatureVectorsAndTargets:
         # Extract Contexts
         #
         terms_for_extraction = {'search': self.search_terms, 'related': self.related_terms}
-        ec = ExtractContexts(self.pdo, self.context_size, terms_for_extraction)
+        ec = ExtractContexts(self.pdo, self.context_size)
+        ec.extract_contexts(terms_for_extraction)
         self.contexts = ec.contexts  # save the details for the contexts we extracted
         number_of_search_contexts = sum([len(c) for c in ec.get_contexts_by_doc_id_for('search').values()])
         number_of_related_contexts = sum([len(c) for c in ec.get_contexts_by_doc_id_for('related').values()])

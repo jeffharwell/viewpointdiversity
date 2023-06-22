@@ -5,7 +5,7 @@ import gensim.downloader as api
 class Word2VecFeatureGenerator:
     def __init__(self, vector_model=False):
         if not vector_model:
-            print("Leading Gensim Model")
+            print("Loading Gensim Model")
             # Load a small, fast, gensim word2vec pretrained model
             self.vector_model = api.load('glove-twitter-25')
             print("Finished")
