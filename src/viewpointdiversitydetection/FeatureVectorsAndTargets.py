@@ -116,36 +116,58 @@ class FeatureVectorsAndTargets:
         self.empty_sentiment_vector = [0.0] * self.length_of_sentiment_vector
         self.empty_word2vec_vector = [0.0] * self.length_of_word2vec_vector
 
+        # We may have a certain number of documents that did not have any contexts extracted
+        # We don't want to include those in our final feature set.
+        doc_idx_with_no_extractions = []
+        all_labels = self.contexts.keys()
+        for i in range(0, len(self.pdo.all_docs)):  # for every parsed document
+            has_context = [1 for l in all_labels if i in self.contexts[l]]  # does this document have any contexts
+            if sum(has_context) == 0:  # we don't find any extracted contexts for any label
+                doc_idx_with_no_extractions.append(i)  # i is the index of the document that had no context extracted
+
+        # Warn the programmer that we have a certain number of documents that had no context and will not be included
+        # in the feature set.
+        if len(doc_idx_with_no_extractions) > 0:
+            print(f"INFO: There were {len(doc_idx_with_no_extractions)} documents where no context was extracted:")
+            print("      The following documents will not be included in the feature set.")
+            percent_of_corpus = len(doc_idx_with_no_extractions)*100.0/len(self.pdo.all_docs)
+            print(f"      This represents {percent_of_corpus:.2f}% of the corpus")
+            for i in doc_idx_with_no_extractions:
+                print(i, end=", ")
+        print("")
+
+
         #
         # Combine the Word2Vec Features and the Sentiment Features into a single feature vector
         #
         for i in range(0, len(self.pdo.all_docs)):
-            if i in search_word2vec_vectors_by_doc_id:
-                search_word2vec = search_word2vec_vectors_by_doc_id[i]
-            else:
-                search_word2vec = self.empty_word2vec_vector
+            if i not in doc_idx_with_no_extractions:  # if it doesn't have a context extraction don't include it
+                if i in search_word2vec_vectors_by_doc_id:
+                    search_word2vec = search_word2vec_vectors_by_doc_id[i]
+                else:
+                    search_word2vec = self.empty_word2vec_vector
 
-            if i in related_word2vec_vectors_by_doc_id:
-                related_word2vec = related_word2vec_vectors_by_doc_id[i]
-            else:
-                related_word2vec = self.empty_word2vec_vector
+                if i in related_word2vec_vectors_by_doc_id:
+                    related_word2vec = related_word2vec_vectors_by_doc_id[i]
+                else:
+                    related_word2vec = self.empty_word2vec_vector
 
-            if i in search_sentiment_vectors_by_doc_id:
-                search_sentiment = search_sentiment_vectors_by_doc_id[i]
-            else:
-                search_sentiment = self.empty_sentiment_vector
+                if i in search_sentiment_vectors_by_doc_id:
+                    search_sentiment = search_sentiment_vectors_by_doc_id[i]
+                else:
+                    search_sentiment = self.empty_sentiment_vector
 
-            if i in related_sentiment_vectors_by_doc_id:
-                related_sentiment = related_sentiment_vectors_by_doc_id[i]
-            else:
-                related_sentiment = self.empty_sentiment_vector
+                if i in related_sentiment_vectors_by_doc_id:
+                    related_sentiment = related_sentiment_vectors_by_doc_id[i]
+                else:
+                    related_sentiment = self.empty_sentiment_vector
 
-            sv = combine_as_average(search_sentiment, related_sentiment, include_zeros=True)
-            self.feature_vectors.append(sv + list(search_word2vec) + list(related_word2vec))
-            self.feature_vectors_as_components.append({'sentiment': sv,
-                                                       'search': search_word2vec,
-                                                       'related': related_word2vec})
-            self.targets_for_features.append(self.pdo.target[i])
+                sv = combine_as_average(search_sentiment, related_sentiment, include_zeros=True)
+                self.feature_vectors.append(sv + list(search_word2vec) + list(related_word2vec))
+                self.feature_vectors_as_components.append({'sentiment': sv,
+                                                           'search': search_word2vec,
+                                                           'related': related_word2vec})
+                self.targets_for_features.append(self.pdo.target[i])
 
 
 class Holder:

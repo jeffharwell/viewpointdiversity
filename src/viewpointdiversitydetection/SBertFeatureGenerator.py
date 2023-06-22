@@ -74,7 +74,7 @@ class SBertFeatureGenerator:
         # {context_label: {doc_id: [TermContext1, TermContext2, ..], ..}, context_label2: ...}
 
         doc_idx_to_vector = {}
-        # Iterate through every document that has an extraction
+        # Iterate through every document that has an extraction for this context label
         for doc_idx, term_contexts in extract_contexts[context_label].items():
             vectors = []
             sentences_by_hash = {}
@@ -93,16 +93,12 @@ class SBertFeatureGenerator:
                         if sentence_hash not in sentences_by_hash:
                             # this one is new, add it, keyed by hash, to our dict of sentences
                             sentences_by_hash[sentence_hash] = s.text
-                            if len(s.text) == 0:
-                                print("Warning, sentence has length 0")
-                                print(f"Doc Index: {doc_idx}")
-                                print(f"Sentence Indices: {sentence_indices}")
-                                print("Document:")
-                                print(parsed_document)
                             # print(s.text)
 
             # Get the Sentence Bert Embedding for each sentence and add it to our list of vectors
-            vectors.append(self._get_vector_from_term_sentences(sentences_by_hash.values()))
+            # if any contexts were available
+            if len(sentences_by_hash) != 0:
+                vectors.append(self._get_vector_from_term_sentences(sentences_by_hash.values()))
 
             # Check for zeros
             if len(vectors) == 0:

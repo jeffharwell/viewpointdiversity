@@ -1,8 +1,9 @@
 import configparser
+import time
 import unittest
 import numpy as np
 
-from viewpointdiversitydetection import SBertFeatureGenerator, FeatureVectorsAndTargets
+from viewpointdiversitydetection import SBertFeatureGenerator, FeatureVectorsAndTargets, RawCorpusFourForums
 from viewpointdiversitydetection import TokenFilter, ParsedDocumentsFourForums, FindCharacteristicKeywords
 
 
@@ -84,6 +85,63 @@ class SBertFeatureGeneratorTest(unittest.TestCase):
         len_sentiment = len(fvt.feature_vectors_as_components[0]['sentiment'])
         just_w2v = fvt.feature_vectors[0][len_sentiment:]
         self.assertTrue(np.array_equal(combined_array, just_w2v))
+
+    def test_empty_sentences(self):
+        """
+        Correctly handle empty sets of sentences.
+
+        :return:
+        """
+        # Load the Configuration
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+
+        user = config['InternetArgumentCorpus']['username']
+        password = config['InternetArgumentCorpus']['password']
+        host = config['InternetArgumentCorpus']['host']
+        database = 'fourforums'
+
+        # search_terms = ['strict', 'gun', 'control']
+        search_terms = ['abortion', 'pro-life', 'pro-choice']
+
+        # Token Filter
+        tf = TokenFilter()
+
+        # Initialize the Vector Model
+        vector_model = SBertFeatureGenerator(False, False)
+
+        # Process the Corpus
+        topic = 'abortion'
+        # rc = vdd.RawCorpusFourForums('gun control', database, host, user, password)
+        rc = RawCorpusFourForums(topic, database, host, user, password)
+        # rc.stance_a = 'prefers strict gun control'
+        # rc.stance_b = 'opposes strict gun control'
+        rc.stance_a = 'pro-life'
+        rc.stance_b = 'pro-choice'
+        corpus_stats = rc.print_stats()
+        pdo = ParsedDocumentsFourForums(tf, topic, rc.stance_a,
+                                        rc.stance_b, database, host, user, password)
+        query_limit = 750
+        print(f"Only pulling the first {query_limit} documents from the database")
+        pdo.set_result_limit(query_limit)
+        pdo.stance_agreement_cutoff = rc.stance_agreement_cutoff
+        label_a = pdo.get_stance_label(rc.stance_a)
+        label_b = pdo.get_stance_label(rc.stance_b)
+        print(f"{rc.stance_a} => {label_a}, {rc.stance_b} => {label_b}")
+        pdo.process_corpus()
+
+        print("Finding Related Terms")
+        fk = FindCharacteristicKeywords(pdo, print_stats=False)
+        related_terms = fk.get_unique_nouns_from_term_context(search_terms, 'search')
+        print(f"{len(search_terms)} search terms and {len(related_terms)} related terms found for corpus.")
+
+        context_size = 6
+        fvt = FeatureVectorsAndTargets(pdo, vector_model, search_terms, related_terms, context_size)
+        print("Starting Feature Creation")
+        start = time.process_time()
+        fvt.create_feature_vectors_and_targets()
+        end = time.process_time()
+        print(f"Created {len(fvt.feature_vectors)} feature vectors in {(end - start) / 60:.2f} minutes.")
 
     def test_printing_embedding_sentences(self):
         """

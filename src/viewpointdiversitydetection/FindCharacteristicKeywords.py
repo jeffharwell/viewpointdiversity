@@ -11,7 +11,7 @@ from viewpointdiversitydetection.TrackTrailingContext import TrackTrailingContex
 
 class FindCharacteristicKeywords:
 
-    def __init__(self, parsed_document_object):
+    def __init__(self, parsed_document_object, print_stats=True):
         """
         Initialize the Object
 
@@ -19,11 +19,11 @@ class FindCharacteristicKeywords:
         """
         # Initialize the extracted context ranges object, this will keep track of the range of every
         # context we extract from the corpus
-        self.extracted_contexts = None
         self.stemmer = SnowballStemmer(language='english')
         stop_words = set(stopwords.words('english'))
         self.stop_words = [s for s in stop_words if s not in ['no', 'nor', 'not']]  # I want negations
         self.pdo = parsed_document_object
+        self.print_stats = print_stats
         if len(self.pdo.all_docs) == 0:
             raise ValueError("ParsedDocument object contains no parsed documents.")
 
@@ -83,13 +83,11 @@ class FindCharacteristicKeywords:
                 all_nouns = all_nouns + nouns_from_contexts
 
         unique_nouns = list(set(all_nouns))
-        self.analyze(unique_nouns)
-        # We need to keep track of the contexts that were extracted for the analyze function
-        self.extracted_contexts = ec.ex
+        if self.print_stats:
+            self.analyze(unique_nouns, ec.ex)
         return unique_nouns
 
-    def analyze(self, unique_nouns):
-        ex = self.extracted_contexts
+    def analyze(self, unique_nouns, ex):
         all_docs = self.pdo.all_docs
 
         if ex:
