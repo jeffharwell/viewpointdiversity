@@ -19,115 +19,13 @@ class FindCharacteristicKeywords:
         """
         # Initialize the extracted context ranges object, this will keep track of the range of every
         # context we extract from the corpus
-        self.extracted_contexts = ExtractedContextRanges()
+        self.extracted_contexts = None
         self.stemmer = SnowballStemmer(language='english')
         stop_words = set(stopwords.words('english'))
         self.stop_words = [s for s in stop_words if s not in ['no', 'nor', 'not']]  # I want negations
         self.pdo = parsed_document_object
         if len(self.pdo.all_docs) == 0:
             raise ValueError("ParsedDocument object contains no parsed documents.")
-
-    def _xx_get_context_for_multiple_terms(self, document, document_index, match_terms, context_size,
-                                           token_filter, context_label):
-        """
-        Function which uses the collectors to get the contexts for the given terms. This
-        is version two of the function and it can efficiently extract contexts for multiple
-        terms in a single sweep.
-
-        Eventually I would like to remove the dependency on the Spacy methods for the
-        internals of this function, but that isn't necessarily a immediate design goal.
-
-        :param document: A Spacy document
-        :param document_index: The index number of the document we are processing, needed by the
-                               extracted_contents object.
-        :param match_terms: A list of terms that we are searching the document for
-        :param context_size: The number of tokens leading and trailing context we are collecting
-        :param token_filter: A function that returns a boolean indicating if a certain taken should be included
-                                   in the context. Note that this does not affect the number of tokens we collect, it
-                                   is only applied when we actually return the context. Put another way token_filter
-                                   is applied after 'content_size' tokens have been collected and before the contexts
-                                   are returned.
-        :param context_label: the label for the contexts we are extracting
-        """
-        stemmer = self.stemmer
-        extracted_contents = self.extracted_contexts
-        stop_words = self.stop_words
-
-        match_stems = [stemmer.stem(t) for t in match_terms]
-        leading_tokens = TrackLeadingContext(context_size, token_filter)
-        trailing_tokens = TrackTrailingContext(context_size, token_filter)
-        extracted_token_indexes = []
-        token_index_to_stem = {}
-
-        # First sweep through the tokens in the document and
-        # grab the context of every word that matches our match_term
-        for token_idx, token in enumerate(document):
-            if not token.is_space and not token.is_punct and token.text.lower() not in stop_words:
-                # keep track of the trailing context
-                trailing_tokens.collect(token, token_idx)
-
-                # now see if this new token matches our match_term, if so
-                # we 'trigger' a collection of leading and trailing context
-                #
-                # We don't do that if the current token is on a range that has already been extracted, or if we
-                # are currently collecting. If we are currently collecting that means that we already had a match
-                # but haven't gathered enough context for it. Since this token will be extracted anyways no need
-                # to see if it matches any other terms.
-                #
-                # Not that TrackTrailingContext is designed to be able to collect multiple contexts at the same time
-                # by not attempting a match when it is still collecting from the last match we constraining the
-                # algorithm to collect only one context at a time.
-                if not extracted_contents.has_been_extracted(document_index, token_idx) \
-                   and not trailing_tokens.is_collecting():
-                    token_stem = stemmer.stem(token.text)
-                    if token_stem in match_stems:
-                        # It matches, take a snapshot of the context we have seen
-                        leading_tokens.remember_last_tokens(token_idx)
-                        # and spawn a new collector to grab the next x tokens of context
-                        trailing_tokens.remember_next_tokens(token_idx)
-                        # increment our trigger index
-                        extracted_token_indexes.append(token_idx)
-                        # Keep track of which stem this context belongs to
-                        token_index_to_stem[token_idx] = token_stem
-
-                # keep track of the leading context
-                leading_tokens.collect(token, token_idx)
-
-        # Construct our context objects and update the extracted_contents object
-
-        # each of these is a dictionary like the following
-        # {trigger_index_1:['string','string','string',..], trigger_index_2:['string',...], ...}
-        leading_by_trigger = leading_tokens.return_leading_contexts()
-        trailing_by_trigger = trailing_tokens.return_trailing_contexts()
-        # We create a context object per stem we are looking for
-        # so that we can gather up the leading and trailing contexts
-        context_objects = {}
-        for ms in match_stems:
-            context_objects[ms] = TermContext(ms)
-
-        for t in extracted_token_indexes:
-            stem = token_index_to_stem[t]  # the trigger stem, this is what matched
-            leading = []
-            leading_index = 0
-            trailing_index = 0
-            trailing = []
-            if t in leading_by_trigger:
-                leading = leading_by_trigger[t]['token_text_list']
-                leading_index = leading_by_trigger[t]['starting_index']
-            if t in trailing_by_trigger:
-                trailing = trailing_by_trigger[t]['token_text_list']
-                trailing_index = trailing_by_trigger[t]['ending_index']
-            if len(leading) != 0 or len(trailing) != 0:
-                sentence_indices = self.get_sentence_indexes_from_token_range(leading_index,
-                                                                              trailing_index,
-                                                                              document)
-                context_objects[stem].add_context_with_indices(leading, trailing, leading_index, trailing_index,
-                                                               sentence_indices)
-                extracted_contents.record_extraction(document_index, t, leading_index, trailing_index, context_label)
-
-        # Return a list of TermContext objects, each having all the contexts for each of the matching terms
-        # in the document. But only if we actually grabbed any context for that term.
-        return [co for co in context_objects.values() if co.has_context()]
 
     def get_unique_nouns_from_term_context(self, terms, context_label, context_size=4):
         """
@@ -186,42 +84,21 @@ class FindCharacteristicKeywords:
 
         unique_nouns = list(set(all_nouns))
         self.analyze(unique_nouns)
+        # We need to keep track of the contexts that were extracted for the analyze function
+        self.extracted_contexts = ec.ex
         return unique_nouns
 
     def analyze(self, unique_nouns):
         ex = self.extracted_contexts
         all_docs = self.pdo.all_docs
 
-        print("Performed %s total extractions" % len(ex.extractions))
-        print("We have extracted %s new unique nouns" % len(unique_nouns))
+        if ex:
+            print("Performed %s total extractions" % len(ex.extractions))
+            print("We have extracted %s new unique nouns" % len(unique_nouns))
 
-        documents_with_extractions = list(ex.extractions.keys())
-        print("Extracted from %s total documents" % len(documents_with_extractions))
-        coverage = len(documents_with_extractions) / len(all_docs)
-        print("Extraction coverage: %.4f percent" % coverage)
-
-    def xx_get_sentence_indexes_from_token_range(self, start_doc_token_idx, end_doc_token_idx, doc):
-        """
-        Given a beginning and ending token this function uses the Spacy parsed
-        document to find and return the sentences that contain that range of
-        tokens.
-
-        :param start_doc_token_idx: the token index that marks the beginning of the range
-        :param end_doc_token_idx:  the token index that marks the end of the range
-        :param doc: the document as a Spacy object
-        :return: A list of spacy sentences
-        """
-
-        start_sentence_idx = 0
-        end_sentence_idx = 0
-        doc_token_idx = 0
-        for i, s in enumerate(doc.sents):
-            for t in s:
-                if doc_token_idx == start_doc_token_idx:
-                    start_sentence_idx = i
-                elif doc_token_idx == end_doc_token_idx - 1:
-                    end_sentence_idx = i
-                doc_token_idx += 1
-        # print(start_sentence_idx, end_sentence_idx)
-        return list(range(start_sentence_idx, end_sentence_idx + 1))
-
+            documents_with_extractions = list(ex.extractions.keys())
+            print("Extracted from %s total documents" % len(documents_with_extractions))
+            coverage = len(documents_with_extractions) / len(all_docs)
+            print("Extraction coverage: %.4f percent" % coverage)
+        else:
+            print("No contexts have been extracted")

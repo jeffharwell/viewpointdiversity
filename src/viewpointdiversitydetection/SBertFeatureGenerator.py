@@ -93,6 +93,12 @@ class SBertFeatureGenerator:
                         if sentence_hash not in sentences_by_hash:
                             # this one is new, add it, keyed by hash, to our dict of sentences
                             sentences_by_hash[sentence_hash] = s.text
+                            if len(s.text) == 0:
+                                print("Warning, sentence has length 0")
+                                print(f"Doc Index: {doc_idx}")
+                                print(f"Sentence Indices: {sentence_indices}")
+                                print("Document:")
+                                print(parsed_document)
                             # print(s.text)
 
             # Get the Sentence Bert Embedding for each sentence and add it to our list of vectors
