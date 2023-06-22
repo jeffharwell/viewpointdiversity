@@ -27,9 +27,9 @@ class FeatureVectorsAndTargets:
         self.contexts = []  # contexts indexed by term to extract then the document index number
         # {context_label: {doc_id: [TermContext1, TermContext2, ..], ..}, context_label2: ...}
 
-        self.feature_vectors = []
-        self.feature_vectors_as_components = []
-        self.targets_for_features = []
+        self.feature_vectors = {}  # indexed by document index from the PDO
+        self.feature_vectors_as_components = {}  # indexed by document index from the PDO
+        self.targets_for_features = {}  # indexed by document index from the PDO
 
         self.length_of_sentiment_vector = 0
         self.length_of_word2vec_vector = 0
@@ -163,11 +163,11 @@ class FeatureVectorsAndTargets:
                     related_sentiment = self.empty_sentiment_vector
 
                 sv = combine_as_average(search_sentiment, related_sentiment, include_zeros=True)
-                self.feature_vectors.append(sv + list(search_word2vec) + list(related_word2vec))
-                self.feature_vectors_as_components.append({'sentiment': sv,
-                                                           'search': search_word2vec,
-                                                           'related': related_word2vec})
-                self.targets_for_features.append(self.pdo.target[i])
+                self.feature_vectors[i] = sv + list(search_word2vec) + list(related_word2vec)
+                self.feature_vectors_as_components[i] = {'sentiment': sv,
+                                                         'search': search_word2vec,
+                                                         'related': related_word2vec}
+                self.targets_for_features[i] = self.pdo.target[i]
 
 
 class Holder:
