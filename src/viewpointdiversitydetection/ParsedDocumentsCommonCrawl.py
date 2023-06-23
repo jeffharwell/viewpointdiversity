@@ -57,22 +57,36 @@ class ParsedDocumentsCommonCrawl:
         self.spacy_model = 'en_core_web_lg'
 
         self.token_filter = token_filter
+        self.pre_transform_func = None
 
         # minimum number of tokens required for us to process a document
-        self.length_filter = 4
+        self.length_filter = 0
 
         # Our dataframe
         self.df = df
 
         # Initialize some Variables
         self.data_structure = {}
+        self.raw_text = list()
         self.text = list()
+        self.warc_record_id = []
+        self.relevance = []
         self.all_docs = []
         self.cas = CorpusAsStems(self.token_filter)
         self.corpusAsStems = self.cas  # a bit more self documenting as an object attribute
         self.target = list()
 
-    def process_corpus(self):
+    def set_pre_transform(self, pre_transform_function):
+        """
+        Accept a transform function, we will use this function to prefilter the raw text
+        before we save it to the data structures.
+
+        :param pre_transform_function: a function that accepts a string, and returns a string
+        :return:
+        """
+        self.pre_transform_func = pre_transform_function
+
+    def process_corpus(self, print_stats=True):
         """
         Process the corpus. This initializes the Spacy model, parses the corpus, gathers stats
         and then returns them. It also prepares the CorpusAsStems index and the all_docs data structure
@@ -82,13 +96,15 @@ class ParsedDocumentsCommonCrawl:
 
         # Create the self.all_docs object
         self._process_corpus()  # actually process the corpus .. I guess
-        self.print_corpus_stats()  # print out some stats on the parse
+        if print_stats:
+            self.print_corpus_stats()  # print out some stats on the parse
 
         # Create a representation of the corpus as stems
         self.cas.extract_stems(self.all_docs)
 
         # Output basic stats from the stems process
-        self.cas.print_stats()
+        if print_stats:
+            self.cas.print_stats()
 
     def _process_corpus(self):
         """
@@ -150,21 +166,34 @@ class ParsedDocumentsCommonCrawl:
             raise RuntimeError(
                 "We have already processed the corpus during initialization. You cannot initialize again.")
 
-        # First, Get all the documents and create the indexes
-        post_id = 0
-        for t in self.df['text']:
-            text = t
-            key = str(post_id)
-            # Fill in 0 for the stance targed id and continuous stance
+        # Populate the self.data_structure structure, using the warc_record_id as the post id
+        for doc_idx, record in enumerate(self.df[['warc_record_id', 'relevance', 'text']].to_dict('records')):
+            key = record['warc_record_id']
+            text = record['text']
+            # Fill in 0 for the stance targeted id and continuous stance
             self.data_structure[key] = (text, 0, 0)
             self.target.append(0)  # for compatibility, all stances are 0
-            post_id += 1
 
         # Filter out the documents that are too short
         self.length_filtered_count = 0
-        rough_lengths = [(x, len(self.data_structure[x][0].split())) for x in self.data_structure]
-        for item in rough_lengths:
-            if item[1] >= self.length_filter:
-                self.text.append(self.data_structure[item[0]][0])
+        for doc_idx, record in enumerate(self.df[['warc_record_id', 'relevance',
+                                                  'text']].to_dict('records')):
+            # Estimate the length of the text
+            length_estimate = len(record['text'].split())
+
+            # Populate our basic data structures needed both to be able to do the Spacy parse
+            # and to be able to figure out what the relevance and WARC record id are of each
+            # parsed document
+            if length_estimate >= self.length_filter:
+                if self.pre_transform_func:
+                    # If there is a prefilter setup then appy it to the text
+                    self.raw_text.append(record['text'])
+                    self.text.append(self.pre_transform_func(record['text']))
+                else:
+                    self.text.append(record['text'])
+                    self.raw_text = []
+
+                self.warc_record_id.append(record['warc_record_id'])
+                self.relevance.append(record['relevance'])
             else:
-                self.length_filtered_count = self.length_filtered_count + 1
+                self.length_filtered_count += 1

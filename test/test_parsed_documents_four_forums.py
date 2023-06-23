@@ -22,6 +22,56 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
         self.host = config['InternetArgumentCorpus']['host']
         self.database = 'fourforums'
 
+    def test_pre_transform(self):
+        """
+
+        :return:
+        """
+        def get_transform():
+            prolife_pattern_lower = re.compile(r'[p][Rr][Oo][\s-]*[Ll][Ii][Ff][Ee]')
+            prochoice_pattern_lower = re.compile(r'[p][Rr][Oo][\s-]*[Cc][Hh][Oo][Ii][Cc][Ee]')
+            prolife_pattern_upper = re.compile(r'[P][Rr][Oo][\s-]*[Ll][Ii][Ff][Ee]')
+            prochoice_pattern_upper = re.compile(r'[P][Rr][Oo][\s-]*[Cc][Hh][Oo][Ii][Cc][Ee]')
+
+            def transform_text(text):
+                """
+                t1 = re.sub(prolife_pattern_lower, 'prolife', text)
+                t2 = re.sub(prochoice_pattern_lower, 'prochoice', t1)
+                t3 = re.sub(prolife_pattern_upper, 'Prolife', t2)
+                t4 = re.sub(prochoice_pattern_upper, 'Prochoice', t3)
+                """
+                t1 = prolife_pattern_lower.sub('prolife', text)
+                t2 = prochoice_pattern_lower.sub('prochoice', t1)
+                t3 = prolife_pattern_upper.sub('Prolife', t2)
+                t4 = prochoice_pattern_upper.sub('Prochoice', t3)
+                return t4
+
+            return transform_text
+
+        topic = 'abortion'
+        pdo = ParsedDocumentsFourForums(self.tf, topic, 'pro-life',
+                                        'pro-choice', self.database, self.host, self.user, self.password)
+        pdo.set_pre_transform(get_transform())
+        pdo.set_result_limit(2000)
+        pdo.process_corpus()
+        assert('prolife' in pdo.text[39])
+        assert('pro-life' in pdo.raw_text[39])
+
+        assert('Pro-life' in pdo.raw_text[391])
+        assert('Prolife' in pdo.text[391])
+
+        assert('pro life' in pdo.raw_text[27])
+        assert('prolife' in pdo.text[27])
+
+        assert('Pro-choice' in pdo.raw_text[163])
+        assert('Prochoice' in pdo.text[163])
+
+        assert('pro-choice' in pdo.raw_text[65])
+        assert('prochoice' in pdo.text[65])
+
+        assert('pro choice' in pdo.raw_text[1063])
+        assert('prochoice' in pdo.text[1063])
+
     def test_invalid_stance_as_substring(self):
         """
         Make sure that a stance is still invalid even if it is the substring of a valid stance.

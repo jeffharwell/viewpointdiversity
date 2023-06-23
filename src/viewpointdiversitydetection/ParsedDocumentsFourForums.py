@@ -83,11 +83,14 @@ class ParsedDocumentsFourForums:
         # will be set to true of the query results are being limited, false otherwise
         self.is_limited = False
 
+        self.pre_transform_func = None
+
         # Initialize some Variables
         self.data_structure = {}
         self.authors_stance1 = []
         self.authors_stance2 = []
         self.authors_stance_by_desc = {self.stance_a: self.authors_stance1, self.stance_b: self.authors_stance2}
+        self.raw_text = list()
         self.text = list()
         self.target = list()
         self.continuous_target = list()
@@ -106,6 +109,16 @@ class ParsedDocumentsFourForums:
             raise ValueError("%s is not a valid stance for topic %s" % (stance_a, topic_name))
         if stance_b not in self.stances:
             raise ValueError("%s is not a valid stance for topic %s" % (stance_b, topic_name))
+
+    def set_pre_transform(self, pre_transform_function):
+        """
+        Accept a prefilter function, we will use this function to prefilter the raw text
+        before we save it to the data structures
+
+        :param pre_transform_function:
+        :return:
+        """
+        self.pre_transform_func = pre_transform_function
 
     def get_stance_label(self, stance_name):
         """
@@ -426,7 +439,14 @@ class ParsedDocumentsFourForums:
         rough_lengths = [(x, len(self.data_structure[x][0].split())) for x in self.data_structure]
         for item in rough_lengths:
             if item[1] >= self.length_filter:
-                self.text.append(self.data_structure[item[0]][0])
+                if self.pre_transform_func:
+                    # If we have a prefilter we apply it here and save off the original text
+                    self.text.append(self.pre_transform_func(self.data_structure[item[0]][0]))
+                    self.raw_text.append(self.data_structure[item[0]][0])
+                else:
+                    # No prefilter, so we don't populate the raw_text data structure
+                    self.raw_text = []
+                    self.text.append(self.data_structure[item[0]][0])
                 self.target.append(self.data_structure[item[0]][1])
                 self.continuous_target.append(self.data_structure[item[0]][2])
             else:
