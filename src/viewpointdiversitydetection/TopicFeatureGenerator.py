@@ -34,6 +34,8 @@ class TopicFeatureGenerator:
         self.iterations = 400
         self.workers = 7
 
+        self.id2word = None  # we want to keep the id2word dictionary so that we can use it against other texts
+
         self.lda_model = None
         self.num_topics = None
         self.coherence_score = None
@@ -42,6 +44,26 @@ class TopicFeatureGenerator:
         self.debug = False
         self.min_number_topics = 4
         self.max_number_topics = 15
+
+    def create_topic_vectors_from_new_text(self, texts):
+        """
+        Apply a preexisting LDA model to a new set of texts
+
+        :param texts: a list of text
+        :return: a list of topic vectors
+        """
+        # clean the new text
+        cleaned_texts = [self.clean_text(t) for t in texts]
+        # create our phrases
+        text_w_phrases = self.text_with_bigram_phrases(cleaned_texts)
+        # using the existing dictionary to create the BOW representation
+        # note that this means that words and phrases that are in the new text, but not in the text
+        # used to create the LDA model, won't be included.
+        bow_corpus = [self.id2word.doc2bow(t) for t in text_w_phrases]
+        # Create the topic vectors
+        topic_vectors = self.create_topic_vectors(self.num_topics, self.lda_model, bow_corpus)
+
+        return topic_vectors
 
     def create_topic_vectors_from_texts(self, texts):
         """
@@ -64,6 +86,7 @@ class TopicFeatureGenerator:
         # Build a frequency dictionary and filter out the very rare words
         id2word = Dictionary(texts_with_phrases)
         id2word.filter_extremes(no_below=.01, no_above=0.5)
+        self.id2word = id2word  # save off the dictionary
         # create the BOW representation using the dictionary
         bow_corpus = [id2word.doc2bow(doc) for doc in texts_with_phrases]
         if self.debug:

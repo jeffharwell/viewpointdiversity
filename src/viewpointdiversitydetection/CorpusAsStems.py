@@ -22,12 +22,12 @@ class CorpusAsStems:
         :param token_filter: a TokenFilter object
         """
 
-        # Every document in the corpus gets an index number, this hold them
+        # Every document in the corpus gets an index number, this holds them
         self.all_doc_indexes = []
         # Hold a count documents that contain each stem {'stem1':doc count, 'stem2':doc count, ...}; this is each
         # stems document frequency
         self.stem_document_count = {}
-        # Holds the the list of documents that contain each stem {'stem1':[doc idx1, doc idx2 ...], 'stem2':[doc
+        # Holds the list of documents that contain each stem {'stem1':[doc idx1, doc idx2 ...], 'stem2':[doc
         # idx4, ...], ...}
         self.stem_to_doc = {}
         # Holds the list of stems contains in each documents {'doc idx1':[stem1, stem2, stem3 ...], 'doc idx2':[

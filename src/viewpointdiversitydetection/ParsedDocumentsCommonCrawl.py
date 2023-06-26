@@ -132,7 +132,7 @@ class ParsedDocumentsCommonCrawl:
             disabled_components = [c[0] for c in nlp.pipeline]
 
         # Parse the Documents and put the parse in self.all_docs
-        print("Loading %s documents" % len(self.text))
+        #print("Loading %s documents" % len(self.text))
         doc_list = nlp.pipe(self.text, n_process=4, disable=disabled_components)
 
         for doc in doc_list:

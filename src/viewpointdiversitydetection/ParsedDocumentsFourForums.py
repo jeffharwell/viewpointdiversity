@@ -146,7 +146,7 @@ class ParsedDocumentsFourForums:
         self.is_limited = True
         self.query = self.query + "limit %s" % result_limit
 
-    def process_corpus(self):
+    def process_corpus(self, print_stats=True):
         """
         Process the corpus. This initializes the Spacy model, parses the corpus, gathers stats
         and then returns them. It also prepares the CorpusAsStems index and the all_docs data structure
@@ -156,13 +156,15 @@ class ParsedDocumentsFourForums:
 
         # Create the self.all_docs object
         self._process_corpus()  # actually process the corpus .. I guess
-        self.print_corpus_stats()  # print out some stats on the parse
+        if print_stats:
+            self.print_corpus_stats()  # print out some stats on the parse
 
         # Create a representation of the corpus as stems
         self.cas.extract_stems(self.all_docs)
 
         # Output basic stats from the stems process
-        self.cas.print_stats()
+        if print_stats:
+            self.cas.print_stats()
 
     def _get_valid_topics(self):
         """
@@ -238,7 +240,7 @@ class ParsedDocumentsFourForums:
             disabled_components = [c[0] for c in nlp.pipeline]
 
         # Parse the Documents and put the parse in self.all_docs
-        print("Loading %s documents" % len(self.text))
+        #print("Loading %s documents" % len(self.text))
         doc_list = nlp.pipe(self.text, n_process=4, disable=disabled_components)
 
         for doc in doc_list:
