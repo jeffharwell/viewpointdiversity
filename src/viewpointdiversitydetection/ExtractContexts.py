@@ -25,7 +25,7 @@ class ExtractContexts:
                                    that was used in parsing the corpus, parseddocuments_obj.token_filter
         """
         self.ex = ExtractedContextRanges()  # object to keep track of what contexts we have extracted
-        self.pd_obj = parseddocuments_obj
+        self.pdo_obj = parseddocuments_obj
         self.stemmer = SnowballStemmer(language='english')  # create our own instance here
         self.context_size = context_size
         self.terms_to_extract = None
@@ -73,7 +73,7 @@ class ExtractContexts:
             for label, new_terms in terms_to_extract.items():
                 if label in self.terms_to_extract:
                     for t in new_terms:  # iterate from new terms to preserve order!
-                        if t not in self.terms_to_extract[label]:  # we haven't extracted this term before in this context
+                        if t not in self.terms_to_extract[label]:  # we haven't extracted this term in this context
                             self.terms_to_extract[label].append(t)
                             filtered_terms_to_extract[label].append(t)
                 else:  # totally new context, definitely haven't seen it before
@@ -127,9 +127,9 @@ class ExtractContexts:
         matching_doc_indexes = []
         for t in terms:
             s = self.stemmer.stem(t)
-            if s in self.pd_obj.corpusAsStems.stem_to_doc:  # it is a valid stem, as defined by the token filter
+            if s in self.pdo_obj.corpusAsStems.stem_to_doc:  # it is a valid stem, as defined by the token filter
                 # passed to the CorpusAsStems object
-                matching_doc_indexes = matching_doc_indexes + self.pd_obj.corpusAsStems.stem_to_doc[s]
+                matching_doc_indexes = matching_doc_indexes + self.pdo_obj.corpusAsStems.stem_to_doc[s]
 
         matching_doc_indexes = list(set(matching_doc_indexes))  # make it unique
         matching_doc_indexes.sort()
@@ -138,7 +138,7 @@ class ExtractContexts:
         context_by_doc_index = {}
         # for doc_idx, doc in enumerate(all_docs):
         for doc_idx in matching_doc_indexes:
-            doc = self.pd_obj.all_docs[doc_idx]
+            doc = self.pdo_obj.all_docs[doc_idx]
             context_by_doc_index[doc_idx] = self._get_contexts_for_multiple_terms(doc, doc_idx, terms, context_label)
 
         # we return a dictionary keyed by document index, each value is a list of TermContext objects
@@ -286,6 +286,7 @@ class ExtractContexts:
         document to find and return the sentences that contain that range of
         tokens.
 
+        :param token_idx: the index of the token
         :param start_doc_token_idx: the token index that marks the beginning of the range
         :param end_doc_token_idx:  the token index that marks the end of the range
         :param doc: the document as a Spacy object
@@ -342,9 +343,9 @@ class ExtractContexts:
         # as well as all the text sentences that matched those terms
         all_labels = self.contexts.keys()
         term_contexts = []
-        for l in all_labels:
-            if doc_idx in self.contexts[l]:
-                term_contexts = term_contexts + self.contexts[l][doc_idx]
+        for label in all_labels:
+            if doc_idx in self.contexts[label]:
+                term_contexts = term_contexts + self.contexts[label][doc_idx]
         matching_terms = [tc.term for tc in term_contexts]
 
         # Get sentence indices for all contexts
@@ -361,7 +362,7 @@ class ExtractContexts:
                 all_tokens_extracted += c['trailing_tokens']
         unique_tokens_extracted = len(set(all_tokens_extracted))
 
-        total_tokens = len(self.pd_obj.all_docs[doc_idx])
+        total_tokens = len(self.pdo_obj.all_docs[doc_idx])
         sentence_indices = list(set(sentence_indices_list))
         sentences = []
         total_sentences = 0
