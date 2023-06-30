@@ -361,11 +361,11 @@ class ExtractContexts:
                 all_tokens_extracted += c['trailing_tokens']
         unique_tokens_extracted = len(set(all_tokens_extracted))
 
-        total_tokens = len(pdo_obj.all_docs[doc_idx])
+        total_tokens = len(self.pd_obj.all_docs[doc_idx])
         sentence_indices = list(set(sentence_indices_list))
         sentences = []
         total_sentences = 0
-        for i, sent in enumerate(pdo_obj.all_docs[doc_idx].sents):
+        for i, sent in enumerate(self.pdo_obj.all_docs[doc_idx].sents):
             total_sentences += 1
             if i in sentence_indices:
                 sentences.append(sent.text)
