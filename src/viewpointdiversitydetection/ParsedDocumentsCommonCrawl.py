@@ -54,6 +54,8 @@ class ParsedDocumentsCommonCrawl:
         # Add negation extraction to the Spacy NLP pipeline when processing documents
         self.extract_negations = False
         self.tokenize_only = False
+        # nlp.add_pipe('sentencizer')
+        self.sentencize_only = False
         self.spacy_model = 'en_core_web_lg'
 
         self.token_filter = token_filter
@@ -130,6 +132,11 @@ class ParsedDocumentsCommonCrawl:
             # In Spacy the tokenizer is not a distinct component. So by disabled all components we are telling
             # Spacy to tokenize the text into a document and return it, don't do any further processing.
             disabled_components = [c[0] for c in nlp.pipeline]
+        elif self.sentencize_only:
+            # disable everything
+            disabled_components = [c[0] for c in nlp.pipeline]
+            # add the sentencizer back in
+            nlp.add_pipe('sentencizer')
 
         # Parse the Documents and put the parse in self.all_docs
         #print("Loading %s documents" % len(self.text))

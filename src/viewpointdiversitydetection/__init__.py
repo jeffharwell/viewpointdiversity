@@ -12,6 +12,9 @@ from .ExtractContexts import *
 from .TopAndBottomMetric import *
 from .TokenFilter import *
 from .TopicFeatureGenerator import *
+from .SelectRelatedKeywords import *
+from .CorpusDefinition import *
+
 
 # Pull the utility functions up to the package level
 from .feature_vector_creation_utilities import *

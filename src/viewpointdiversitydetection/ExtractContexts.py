@@ -49,6 +49,54 @@ class ExtractContexts:
         for c in self.terms_to_extract.keys():
             self.contexts[c] = self._get_contexts(terms_to_extract[c], c)
 
+    def extract_additional_contexts(self, terms_to_extract):
+        """
+        Extracts additional contexts using additional terms. The method adds to the contexts extracted
+        and will not re-extract existing contexts over overwrite previous contexts.
+
+        :param terms_to_extract: A dictionary with contexts to extract. The terms from each entry will be extracted
+                         at the same time. Of the form
+                         {'context_label':[term1, term2 ..], 'context_label2':[term1, term2, ..], ..}
+        :return: None, the new contexts are added to the existing 'contexts' object variable
+        """
+        if not self.terms_to_extract:
+            # We have never done an initial extract, so do that instead
+            # to initialize the data structures
+            self.extract_contexts(terms_to_extract)
+        else:
+            # This is really an additional extraction, proceed
+
+            # Keep track of the total terms that we have processed by adding the new terms
+            # to the self.terms_to_extract structure by context label
+            # We also want to filter out terms that we have already extracted!
+            filtered_terms_to_extract = {label: [] for label in terms_to_extract.keys()}
+            for label, new_terms in terms_to_extract.items():
+                if label in self.terms_to_extract:
+                    for t in new_terms:  # iterate from new terms to preserve order!
+                        if t not in self.terms_to_extract[label]:  # we haven't extracted this term before in this context
+                            self.terms_to_extract[label].append(t)
+                            filtered_terms_to_extract[label].append(t)
+                else:  # totally new context, definitely haven't seen it before
+                    self.terms_to_extract[label] = new_terms
+                    filtered_terms_to_extract[label] = new_terms
+
+            # Extract the contexts for the new terms and
+            # update the self.contexts data structure
+            for label, terms in filtered_terms_to_extract.items():  # for each label
+                # new_contexts contains context_by_doc_idx: the list of TermContext objects indexed by document id
+                # {doc_idx1: [TermContext1, TermContext2, ...], doc_idx2: [TermContext10, ...], ...}
+                if len(terms) > 0:  # we have terms to extract!
+                    new_contexts = self._get_contexts(terms, label)  # extract the new contexts
+
+                    for doc_idx, term_contexts in new_contexts.items():  # for every set of new contexts
+                        if label not in self.contexts:
+                            self.contexts[label] = {}  # we haven't seen this context label before, create it
+                        if doc_idx in self.contexts[label]:  # if we already have contexts for this document
+                            # {context_label: {doc_id: [TermContext1, TermContext2, ..], ..}, context_label2: ...}
+                            self.contexts[label][doc_idx] += term_contexts  # add the new contexts
+                        else:  # we haven't had contexts for this document before
+                            self.contexts[label][doc_idx] = term_contexts
+
     def get_contexts_by_doc_id_for(self, context_label):
         """
         Returns a dictionary with the contexts indexed by document id for the given context label.
@@ -68,6 +116,7 @@ class ExtractContexts:
 
         :param terms: a list of terms for which to extract contexts from the corpus
         :param context_label: the label of the context that these terms are from
+        :return context_by_doc_idx: the list of TermContext objects indexed by document id
         """
 
         # This is an optimization. The ParsedDocuments object provides access to a CorpusAsStems object
@@ -84,7 +133,7 @@ class ExtractContexts:
 
         matching_doc_indexes = list(set(matching_doc_indexes))  # make it unique
         matching_doc_indexes.sort()
-        print("Searching %s documents which contain matching stems" % len(matching_doc_indexes))
+        # print("Searching %s documents which contain matching stems" % len(matching_doc_indexes))
 
         context_by_doc_index = {}
         # for doc_idx, doc in enumerate(all_docs):
@@ -267,3 +316,81 @@ class ExtractContexts:
                 doc_token_idx += 1
         # print(start_sentence_idx, end_sentence_idx)
         return list(range(start_sentence_idx, end_sentence_idx + 1))
+
+    def get_sentences_and_terms_by_doc_idx(self, doc_idx, include_all_data=False):
+        """
+        Get summary data, and optionally the raw token and sentence data, from the contexts extracted
+        for a specific document id. Summary fields are:
+            total_terms - total number of tokens in the entire document
+            terms_matching - number of tokens that were matched
+            terms_extracted - total number of tokens extracted because of those matches
+            unique_terms_extracted - the number of unique tokens extracted
+            total_sentences - total number of sentences in the document according to Spacy
+            sentences_extracted - number of sentences extracted to encompass the extracted terms
+            percent_terms_extracted - percent_terms_extracted,
+            percent_sentences_extracted - percent_sentences_extracted
+
+        And the data fields are as follows if include_al/_data is True
+            sentences - all extracted sentences
+            tokens - all_tokens_extracted
+
+        :param doc_idx: the document index
+        :param include_all_data: boolean, include extracted sentences and tokens, defaults to False
+        :return: dictionary of fields and data as described above
+        """
+        # For a given document index, get all the matching search terms
+        # as well as all the text sentences that matched those terms
+        all_labels = self.contexts.keys()
+        term_contexts = []
+        for l in all_labels:
+            if doc_idx in self.contexts[l]:
+                term_contexts = term_contexts + self.contexts[l][doc_idx]
+        matching_terms = [tc.term for tc in term_contexts]
+
+        # Get sentence indices for all contexts
+        sentence_indices_list = []
+        tokens_extracted = 0
+        all_tokens_extracted = []
+        for tc in term_contexts:
+            for indices in tc.sentence_indices:
+                sentence_indices_list += indices
+            for c in tc.contexts:
+                tokens_extracted += len(c['leading_tokens'])
+                all_tokens_extracted += c['leading_tokens']
+                tokens_extracted += len(c['trailing_tokens'])
+                all_tokens_extracted += c['trailing_tokens']
+        unique_tokens_extracted = len(set(all_tokens_extracted))
+
+        total_tokens = len(pdo_obj.all_docs[doc_idx])
+        sentence_indices = list(set(sentence_indices_list))
+        sentences = []
+        total_sentences = 0
+        for i, sent in enumerate(pdo_obj.all_docs[doc_idx].sents):
+            total_sentences += 1
+            if i in sentence_indices:
+                sentences.append(sent.text)
+
+        if total_tokens > 0:
+            percent_terms_extracted = tokens_extracted * 1.0 / total_tokens
+        else:
+            percent_terms_extracted = 0
+
+        if total_sentences > 0:
+            percent_sentences_extracted = len(sentences) * 1.0 / total_sentences
+        else:
+            percent_sentences_extracted = 0
+
+        data = {'total_terms': total_tokens,  # total number of tokens in the entire document
+                'terms_matching': len(matching_terms),  # number of tokens that were matched
+                'terms_extracted': tokens_extracted,  # total number of tokens extracted because of those matches
+                'unique_terms_extracted': unique_tokens_extracted,  # the number of unique tokens extracted
+                'total_sentences': total_sentences,  # total number of sentences in the document according to Spacy
+                'sentences_extracted': len(sentences),  # number of sentences extracted to encompass the extracted terms
+                'percent_terms_extracted': percent_terms_extracted,
+                'percent_sentences_extracted': percent_sentences_extracted
+                }
+        if include_all_data:
+            data['sentences'] = sentences
+            data['tokens'] = all_tokens_extracted
+
+        return data
