@@ -217,6 +217,60 @@ def calculate_stats(answers, predictions, cm):
     return stats
 
 
+def calculate_stats_as_float(answers, predictions, cm):
+    """
+    Prints the Stats for a given class label, but return floating point values, not strings.
+    If a value is undefined return -1.
+
+    :param answers: an array of answers
+    :param predictions: an array of predictions
+    :param cm: confusion matrix of form [[TP, FN], [FP, TN]]
+    """
+    # confusion matrix looks like this [[ 23, 63], [ 40, 260]]
+    #                                  [[TP, FN], [FP, TN]]
+    tp = cm[0][0]
+    fn = cm[0][1]
+    fp = cm[1][0]
+    tn = cm[1][1]
+
+    stats = {}
+
+    # Sensitivity, specificity, and balanced accuracy
+    if (tp + fn) == 0:
+        tpr = -1
+    else:
+        tpr_value = tp / (tp + fn)  # how many positive results did it find out of all the positive results available
+        tpr = tpr_value
+    stats['TPR'] = tpr
+
+    if (tn + fp) == 0:
+        print("Specificity/TNR: Undefined")
+        tnr = -1
+    else:
+        tnr_value = tn / (tn + fp)  # how many negative results did it find out of all the negative results available
+        tnr = tnr_value
+    stats['TNR'] = tnr
+
+    if (tp + fp) == 0:
+        ppv = -1
+    else:
+        ppv_value = tp / (tp + fp)
+        ppv = ppv_value
+    stats['PPV'] = ppv
+
+    if (tn + fn) == 0:
+        npv = -1
+    else:
+        npv_value = tn / (tn + fn)
+        npv = npv_value
+    stats['NPV'] = npv
+
+    bal_acc = metrics.balanced_accuracy_score(answers, predictions)
+    stats['Bal Acc'] = bal_acc
+
+    return stats
+
+
 def create_run_stats(answers, predictions, probabilities, top_number, class_1_label, class_2_label):
     """
     This function uses some functions from the vdd module to create a some statistics about the effectiveness
