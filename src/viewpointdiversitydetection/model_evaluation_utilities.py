@@ -217,8 +217,62 @@ def calculate_stats(answers, predictions, cm):
     return stats
 
 
-def generate_markdown_table(corpus_name, search_terms, estimator_parameters, answers, predictions, probabilities, top_number,
-                            class_1_label, class_2_label):
+def create_run_stats(answers, predictions, probabilities, top_number, class_1_label, class_2_label):
+    """
+    This function uses some functions from the vdd module to create a some statistics about the effectiveness
+    of the model for the top and bottom most certain predictions. It is based off of the code from the
+    generate_markdown_table function just extracted from some of the string generation logic.
+
+    This allows us to get the basic top and bottom statistics as a data structure, rather than being embedded
+    in a Markdown table string.
+
+    :param answers: numpy array of answers
+    :param predictions: numpy array of predictions
+    :param probabilities: numpy array of arrays, each element in the array being a class probability
+    :param top_number: the number of top performers to analyze
+    :param class_1_label: the label assigned to the first class
+    :param class_2_label: the label assigned to the second class
+    :return stats: a dictionary of stats
+    """
+    # Unpack our probabilities
+    prob1 = [p[0] for p in probabilities]
+    prob2 = [p[1] for p in probabilities]
+
+    # Create a new data structure so that we can sort
+    all_data = list(zip(answers, predictions, prob1, prob2))
+
+    # Sort by probability one, this will correspond to our first class, stance 0, oppose
+    sorted_data_zeros_first = sorted(all_data, key=itemgetter(2),
+                                     reverse=True)  # Highest prob of getting a 0 is sorted first
+
+    reversed_data = all_data.copy()
+    reversed_data.reverse()
+    # Sort by probability two, this will correspond to our second class, stance 1, support
+    sorted_data_ones_first = sorted(reversed_data, key=itemgetter(3),
+                                    reverse=True)  # Highest prob of getting a 1 is at the beginning
+
+    # Class 0 - Slice of top performers
+    answers_class_1 = [a[0] for a in sorted_data_zeros_first[0:top_number]]
+    predictions_class_1 = [a[1] for a in sorted_data_zeros_first[0:top_number]]
+
+    # Class 1 - Slice of top performers
+    answers_class_2 = [a[0] for a in sorted_data_ones_first[0:top_number]]
+    predictions_class_2 = [a[1] for a in sorted_data_ones_first[0:top_number]]
+
+    # Combined Top and Bottom Confusion Matrix
+    tb_answers = answers_class_1 + answers_class_2
+    tb_predictions = predictions_class_1 + predictions_class_2
+
+    # Get the TB confusion matrix
+    tb_cm = confusion_matrix(tb_answers, tb_predictions, labels=[class_1_label, class_2_label])
+
+    # create the statistics
+    stats = calculate_stats(tb_answers, tb_predictions, tb_cm)
+    return stats
+
+
+def generate_markdown_table(corpus_name, search_terms, estimator_parameters, answers, predictions, probabilities,
+                            top_number, class_1_label, class_2_label):
     """
     Analyze the top predictions of the model.
 
