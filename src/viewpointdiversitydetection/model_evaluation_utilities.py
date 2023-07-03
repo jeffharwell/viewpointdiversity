@@ -321,7 +321,7 @@ def create_run_stats(answers, predictions, probabilities, top_number, class_1_la
     tb_cm = confusion_matrix(tb_answers, tb_predictions, labels=[class_1_label, class_2_label])
 
     # create the statistics
-    stats = calculate_stats(tb_answers, tb_predictions, tb_cm)
+    stats = calculate_stats_as_float(tb_answers, tb_predictions, tb_cm)
     return stats
 
 
