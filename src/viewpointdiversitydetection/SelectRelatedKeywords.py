@@ -132,7 +132,7 @@ class SelectRelatedKeywords:
 
         # Now filter the co-occurrence matrix
         # if the two terms don't appear together more than twice, or the token
-        # itself is less that 2 characters long, then discard it
+        # itself is less than 2 characters long, then discard it
         ftco = {}
         co_occurence_threshold = self.co_occurrence_threshold
         for term, co in tco.items():  # term is our term, co is our dictionary of co-occurrence terms with counts
