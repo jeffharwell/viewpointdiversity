@@ -102,7 +102,7 @@ class FeatureVectorsAndTargetsTest(unittest.TestCase):
 
         fvt = FeatureVectorsAndTargets(pdo, vector_model, search_terms, related_terms, context_size)
         print("\n--")
-        for v in [0, 1, 2]:
+        for v in [0, 1, 2, 3]:
             print(f"Verbose Level = {v}")
             fvt.create_feature_vectors_and_targets(verbose_level=v)
 

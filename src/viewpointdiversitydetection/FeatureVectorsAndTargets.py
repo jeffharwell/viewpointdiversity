@@ -58,8 +58,9 @@ class FeatureVectorsAndTargets:
         self.contexts = ec.contexts  # save the details for the contexts we extracted
         number_of_search_contexts = sum([len(c) for c in ec.get_contexts_by_doc_id_for('search').values()])
         number_of_related_contexts = sum([len(c) for c in ec.get_contexts_by_doc_id_for('related').values()])
-        print(f"{number_of_search_contexts} search contexts extracted")
-        print(f"{number_of_related_contexts} related contexts extracted")
+        if verbose_level > 0:
+            print(f"{number_of_search_contexts} search contexts extracted")
+            print(f"{number_of_related_contexts} related contexts extracted")
 
         #
         # Create the Sentiment Vectors
@@ -133,12 +134,13 @@ class FeatureVectorsAndTargets:
         # Warn the programmer that we have a certain number of documents that had no context and will not be included
         # in the feature set.
         if len(doc_idx_with_no_extractions) > 0:
-            if verbose_level > 0:
+            if verbose_level > 1:
                 print(f"INFO: There were {len(doc_idx_with_no_extractions)} documents where no context was extracted:")
                 print("      The following documents will not be included in the feature set.")
+            if verbose_level > 1:
                 percent_of_corpus = len(doc_idx_with_no_extractions)*100.0/len(self.pdo.all_docs)
                 print(f"      This represents {percent_of_corpus:.2f}% of the corpus")
-            if verbose_level > 1:
+            if verbose_level > 2:
                 for i in doc_idx_with_no_extractions:
                     print(i, end=", ")
         print("")
