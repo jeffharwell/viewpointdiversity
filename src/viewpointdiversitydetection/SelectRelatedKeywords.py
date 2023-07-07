@@ -13,7 +13,18 @@ class SelectRelatedKeywords:
     The ExtractRelatedNouns class supports various approaches to extracting lists of related
     nouns from a corpus given a set of search terms.
     """
-    def __init__(self, pdo, doc_indices, search_terms, stemmer):
+    def __init__(self, pdo, doc_indices, search_terms, stemmer, context_size):
+        """
+        The constructor. When you instantiate the class it will go ahead and get all the candidate related keywords
+        within 'context_size' number of (cleaned) tokens from the search term and compute both an IDF and co-occurrence
+        score for each term.
+
+        :param pdo: A ParsedDocuments object
+        :param doc_indices: a list of doc indices to use, ignore documents not in this list
+        :param search_terms: a list of search terms
+        :param stemmer: a stemmer object (must implement a stemmer.stem() method)
+        :param context_size: the range of tokens to consider before and after a match when extracting related nouns
+        """
         self.pdo = pdo
         self.doc_indices = doc_indices
         self.search_terms = search_terms
@@ -22,6 +33,7 @@ class SelectRelatedKeywords:
         self.co_occurrence_threshold = 1  # number of times a term has to co-occur before it is considered
         self.stop_words = set(stopwords.words('english'))
         self.stemmer = stemmer
+        self.context_size = context_size
 
         # Create new indices that map stems to document indices and document indices to stems
         # but only contain the documents that are in doc_indicies (presumable our training set)
@@ -53,16 +65,15 @@ class SelectRelatedKeywords:
         self.coterm_df['stem'] = self.coterm_df.apply(lambda x: stemmer.stem(x['term']), axis='columns')
         self.coterm_df['idf'] = self.coterm_df.apply(lambda x: self.calculate_idf(x['stem']), axis='columns')
 
-    def extract_all_contexts(self, pdo, context_size=4):
+    def extract_all_contexts(self, pdo):
         """
         Extract all of related nouns from a corpus.
 
         :param pdo: the parsed document object
-        :param context_size: the range of tokens to extract for related nouns, defaults to 4
         :return: all extracted contexts
         """
         all_contexts = {}
-        ec = ExtractContexts(pdo, context_size, NounTokenFilter())
+        ec = ExtractContexts(pdo, self.context_size, NounTokenFilter())
         for doc_idx in self.doc_indices:
             doc = pdo.all_docs[doc_idx]
             extracted_contexts = ec.get_contexts_for_multiple_terms(doc, doc_idx, self.search_terms, 'related')
@@ -235,10 +246,16 @@ class SelectRelatedKeywords:
         # print(f"    Mean Contexts Extracted: {mean_contexts_extracted}")
         return mean_contexts_extracted
 
-    def find_terms_from_sorted_df_by_context(self, sorted_terms_df, threshold, context_size):
+    def find_terms_from_sorted_df_by_context(self, sorted_terms_df, threshold):
         """
-        Select additional terms until the average number of extracted contexts is 'threshold' across the corpus
+        Select additional terms until the average number of matched keywords is 'threshold' across the entire corpus.
+
+        :param sorted_terms_df: a dataframe containing all related keywords sorted by weight descending
+        :param threshold: the mean number of matching terms per document to require before we stop selected additional
+                          related keywords
+        :return: a list of terms representing the list of stems
         """
+
         # Create the list of stems from the list of terms
         distinct_ordered_stems = []
         for t in sorted_terms_df['term'].to_list():
@@ -248,7 +265,7 @@ class SelectRelatedKeywords:
 
         # use the ExtractContext object to keep track of, and calculate, our mean contexts extracted
         ec = ExtractContexts(self.pdo,
-                             context_size)
+                             self.context_size)
         cumulative_stems = []  # holds our list of selected stems
         for s in distinct_ordered_stems:  # iterate through our list of stems
             cumulative_stems.append(s)  # these are all the stems we have tried
@@ -349,17 +366,15 @@ class SelectRelatedKeywords:
 
         return self.find_terms_from_sorted_df(sorted_terms_df, k)
 
-    def get_related_keywords_context_threshold(self, k, context_size, mean_num_contexts_extracted=2):
+    def get_related_keywords_context_threshold(self, k, mean_num_terms_matched):
         """
-        Weighs co-terms with 'k' and then selects terms until the average number of concepts
-        extracted from the terms/stems is 2 including the search terms.
+        Weighs co-terms with 'k' and then selects terms until the average number of matched terms
+        per document across the corpus equals mean_num_terms_matched across the entire corpus.
 
         :param k: weight to give the IDF score
-        :param context_size: the context size to use when extracting contexts
-        :param mean_num_contexts_extracted: the mean number of contexts extracted used to determine when to stop
-               selecting new terms from our list of sorted candidate terms. Defaults to 2.
+        :param mean_num_terms_matched: the mean number terms matched per document, used to determine when to stop
+               selecting new terms from our list of sorted candidate terms.
         """
-
         # Use the k value to calculate our weights
         self.coterm_df['weighted'] = self.coterm_df.apply(lambda x: math.log2(k * x['co_weight']) * x['idf'],
                                                           axis='columns')
@@ -367,16 +382,15 @@ class SelectRelatedKeywords:
         # Sort by weight descending
         sorted_terms_df = self.coterm_df.sort_values('weighted', ascending=False, inplace=False)
 
-        return self.find_terms_from_sorted_df_by_context(sorted_terms_df, mean_num_contexts_extracted, context_size)
+        return self.find_terms_from_sorted_df_by_context(sorted_terms_df, mean_num_terms_matched)
 
-    def get_related_keywords_context_threshold_idf(self, idf_method, context_size, mean_num_contexts_extracted=2):
+    def get_related_keywords_context_threshold_idf(self, idf_method, mean_num_terms_matched):
         """
         Get the related keywords using just IDF and context threshold, sorted either ascending or descending
 
         :param idf_method: string, either 'asc' or desc'
-        :param context_size: the context size to use when extracting contexts
-        :param mean_num_contexts_extracted: the mean number of contexts extracted used to determine when to stop
-               selecting new terms from our list of sorted candidate terms. Defaults to 2.
+        :param mean_num_terms_matched: the mean number terms matched per document, used to determine when to stop
+               selecting new terms from our list of sorted candidate terms.
         """
 
         if idf_method == 'asc':
@@ -389,4 +403,4 @@ class SelectRelatedKeywords:
         # Sort by idf score, either ascending or descending
         sorted_terms_df = self.coterm_df.sort_values('idf', ascending=ascending, inplace=False)
 
-        return self.find_terms_from_sorted_df_by_context(sorted_terms_df, mean_num_contexts_extracted, context_size)
+        return self.find_terms_from_sorted_df_by_context(sorted_terms_df, mean_num_terms_matched)

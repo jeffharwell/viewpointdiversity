@@ -47,7 +47,7 @@ class SelectRelatedKeywordsTest(unittest.TestCase):
 
         def call_constructor():
             SelectRelatedKeywords(cc_pdo, list(range(0, len(cc_pdo.all_docs))),
-                                  search_terms, self.stemmer)
+                                  search_terms, self.stemmer, context_size=4)
 
         self.assertRaises(ValueError, call_constructor)
 
@@ -63,8 +63,9 @@ class SelectRelatedKeywordsTest(unittest.TestCase):
         k = 100
         # First extract our related terms given the value of k
         search_terms = ['abortion']
-        srk = SelectRelatedKeywords(cc_pdo, list(range(0, len(cc_pdo.all_docs))), search_terms, self.stemmer)
-        related_keywords = srk.get_related_keywords_context_threshold(k, context_size)
+        srk = SelectRelatedKeywords(cc_pdo, list(range(0, len(cc_pdo.all_docs))), search_terms,
+                                    self.stemmer, context_size=4)
+        related_keywords = srk.get_related_keywords_context_threshold(k, mean_num_terms_matched=2)
 
         # We should have extracted some related keywords
         assert(len(related_keywords) > 0)
