@@ -105,6 +105,7 @@ class FeatureVectorsAndTargetsTest(unittest.TestCase):
         for v in [0, 1, 2, 3]:
             print(f"Verbose Level = {v}")
             fvt.create_feature_vectors_and_targets(verbose_level=v)
+            print("")
 
 
 if __name__ == '__main__':

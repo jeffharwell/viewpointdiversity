@@ -50,7 +50,7 @@ class ParsedDocumentsFourForums:
         self.spacy_model = 'en_core_web_lg'
 
         self.query = """
-                select post.author_id, mturk_author_stance.discussion_id, post.text_id, topic_stance_id_1, 
+          select post.author_id, mturk_author_stance.discussion_id, post.text_id, topic_stance_id_1, 
                a.stance stance_1, topic_stance_votes_1, topic_stance_id_2, b.stance stance_2,
                topic_stance_votes_2, text.`text`,
                if(topic_stance_votes_1 = 0 || topic_stance_votes_2 = 0, 'unanimous', 'split') consensus,
@@ -64,7 +64,7 @@ class ParsedDocumentsFourForums:
                                    join post on post.discussion_id = mturk_author_stance.discussion_id and
                                         post.author_id = mturk_author_stance.author_id 
                                    join text on text.text_id = post.text_id 
-         where topic.topic = %s
+          where topic.topic = %s
                and a.stance in (%s, %s)
                and b.stance in (%s, %s)
                and topic_stance_votes_1 + topic_stance_votes_2 > 1
@@ -95,6 +95,7 @@ class ParsedDocumentsFourForums:
         self.target = list()
         self.continuous_target = list()
         self.all_docs = []
+        self.post_id = []  # structure to map the document index to the post id
         self.cas = CorpusAsStems(self.token_filter)
         self.corpusAsStems = self.cas  # a bit more self documenting as an object attribute
 
@@ -420,15 +421,24 @@ class ParsedDocumentsFourForums:
                                                                                         result['topic_stance_votes_1'],
                                                                                         post_id)
 
-                        key = str(post_id)
+                        key = str(post_id)  # our data structure key is the post_id/text_id, make sure this is unique!
                         if key in self.data_structure:
-                            print("In theory this should never happen, each post_id should be unique")
+                            print(f"This should never happen, each post_id should be unique, but {post_id} "
+                                  "is duplicated.")
+                            raise RuntimeError(f"We were expecting every post_id to be unique but "
+                                               f"post id {post_id} is not.")
+                            """
                             existing_text, existing_stance, existing_continuous_stance = self.data_structure[key]
                             if existing_stance != stance_target_id or existing_continuous_stance != continuous_stance:
                                 raise RuntimeError("Author changed stance within a discussion")
-                            self.data_structure[key] = (existing_text + " " + text, stance_target_id, continuous_stance)
+                            concatenated_text = existing_text + " " + text
+                            self.data_structure[key] = (existing_text + " " + text, stance_target_id,
+                                                        continuous_stance, len(concatenated_text.split()))
+                            """
                         else:
-                            self.data_structure[key] = (text, stance_target_id, continuous_stance)
+                            # this thing makes the code really hard to read!
+                            self.data_structure[key] = (text, stance_target_id,
+                                                        continuous_stance, len(text.split()))
                     else:
                         # Keep track of the number of documents we rejected because the annotator confidence
                         # was below the cutoff.
@@ -438,18 +448,26 @@ class ParsedDocumentsFourForums:
 
         # Filter out the documents that are too short
         self.length_filtered_count = 0
-        rough_lengths = [(x, len(self.data_structure[x][0].split())) for x in self.data_structure]
-        for item in rough_lengths:
-            if item[1] >= self.length_filter:
+
+        # Go through the data structure we just created, apply the length filter, then populate the various
+        # object variables.
+        for post_id, data_list in self.data_structure.items():
+            stance_target_id = data_list[1]
+            continuous_stance = data_list[2]
+            rough_length = data_list[3]
+            text = data_list[0]
+
+            if rough_length >= self.length_filter:
                 if self.pre_transform_func:
                     # If we have a prefilter we apply it here and save off the original text
-                    self.text.append(self.pre_transform_func(self.data_structure[item[0]][0]))
-                    self.raw_text.append(self.data_structure[item[0]][0])
+                    self.text.append(self.pre_transform_func(text))
+                    self.raw_text.append(text)
                 else:
                     # No prefilter, so we don't populate the raw_text data structure
                     self.raw_text = []
-                    self.text.append(self.data_structure[item[0]][0])
-                self.target.append(self.data_structure[item[0]][1])
-                self.continuous_target.append(self.data_structure[item[0]][2])
+                    self.text.append(text)
+                self.target.append(stance_target_id)
+                self.continuous_target.append(continuous_stance)
+                self.post_id.append(post_id)  # keep track of the post id so we can find it for a given document index
             else:
                 self.length_filtered_count = self.length_filtered_count + 1

@@ -46,7 +46,8 @@ class FeatureVectorsAndTargets:
         Verbosity levels of greater than 1 will print out the indices of the documents that do not have any
         contexts extracted. Verbosity level of 1 gives that information in summary form.
 
-        :param verbose_level: the verbosity of the output, currently 0, 1, or greater than 1
+        :param verbose_level: the verbosity of the output, currently 0, 1, 2, or greater than 2 for maximum
+                              output.
         """
 
         #
@@ -141,10 +142,7 @@ class FeatureVectorsAndTargets:
                 percent_of_corpus = len(doc_idx_with_no_extractions)*100.0/len(self.pdo.all_docs)
                 print(f"      This represents {percent_of_corpus:.2f}% of the corpus")
             if verbose_level > 2:
-                for i in doc_idx_with_no_extractions:
-                    print(i, end=", ")
-        print("")
-
+                print(", ".join([str(i) for i in doc_idx_with_no_extractions]))
 
         #
         # Combine the Word2Vec Features and the Sentiment Features into a single feature vector

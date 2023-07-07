@@ -1,8 +1,9 @@
+import gc
 import re
 import unittest
 import configparser
 from src.viewpointdiversitydetection import ParsedDocumentsFourForums
-from viewpointdiversitydetection import TokenFilter
+from viewpointdiversitydetection import TokenFilter, CorpusDefinition
 
 
 class ParsedDocumentFourForumTest(unittest.TestCase):
@@ -71,6 +72,95 @@ class ParsedDocumentFourForumTest(unittest.TestCase):
 
         assert('pro choice' in pdo.raw_text[1063])
         assert('prochoice' in pdo.text[1063])
+
+    def test_post_id_structure(self):
+        """
+        Make sure that the post_id structure is populating correctly
+        """
+        topic = 'abortion'
+        pdo = ParsedDocumentsFourForums(self.tf, topic, 'pro-life',
+                                        'pro-choice', self.database, self.host, self.user, self.password)
+        pdo.set_result_limit(200)
+        pdo.process_corpus()
+        assert pdo.post_id
+        assert len(pdo.post_id) == len(pdo.all_docs)
+
+    def test_parse_of_major_four_topics(self):
+        """
+        This is somewhat of and end-to-end test. But I'm mainly wanting to make sure that the post_ids for the major
+        topics are unique and that the code doesn't throw a Runtime error when doing a full parse of the biggest
+        topics in the IAC Fourforums corpus.
+        """
+        def get_transform(topic):
+            if topic == 'abortion':
+                # Compile the Regular Expression patterns that we need for the closure
+                prolife_pattern_lower = re.compile(r'[p][Rr][Oo][\s-]*[Ll][Ii][Ff][Ee]')
+                prochoice_pattern_lower = re.compile(r'[p][Rr][Oo][\s-]*[Cc][Hh][Oo][Ii][Cc][Ee]')
+                prolife_pattern_upper = re.compile(r'[P][Rr][Oo][\s-]*[Ll][Ii][Ff][Ee]')
+                prochoice_pattern_upper = re.compile(r'[P][Rr][Oo][\s-]*[Cc][Hh][Oo][Ii][Cc][Ee]')
+
+                def transform(text):
+                    """
+                    Closure that transforms various forms of pro-life and pro-choice into
+                    prolife and prochoice so they are not eaten by the tokenizer.
+                    """
+                    t1 = prolife_pattern_lower.sub('prolife', text)
+                    t2 = prochoice_pattern_lower.sub('prochoice', t1)
+                    t3 = prolife_pattern_upper.sub('Prolife', t2)
+                    t4 = prochoice_pattern_upper.sub('Prochoice', t3)
+                    return t4
+
+                return transform
+            elif topic in ['existence of God', 'evolution']:
+                # We need to limit the length of the texts that we ingest so that we don't crash
+                # Spacy when we try to parse it.
+                length_limit = 125000
+                print(f"Returning transform to cap document length at {length_limit} characters.")
+
+                def transform(text):
+                    if len(text) > length_limit:
+                        return text[:length_limit]
+                    else:
+                        return text
+
+                return transform
+            else:
+                return None
+
+        def parse_by_topic(corpus_definition):
+            pdo = ParsedDocumentsFourForums(self.tf, corpus_definition.topic, corpus_definition.stance_a,
+                                            corpus_definition.stance_b, self.database, self.host, self.user,
+                                            self.password)
+            pdo.tokenize_only = True  # we are just testing, do a shallow parse
+            pdo.process_corpus()
+            pdo = None  # let the garbage collector know to clear RAM
+            gc.collect()  # free up the RAM from the parse
+
+        # Set up a corpus definition for each of the major topics in the IAC Fourforums database.
+        gun_control_definition = CorpusDefinition('gun control')
+        evolution_definition = CorpusDefinition('evolution')
+        abortion_definition = CorpusDefinition('abortion')
+        existence_of_god_definition = CorpusDefinition('existence of God')
+
+        gun_control_definition.set_stance('prefers strict gun control',
+                                          'opposes strict gun control')
+        evolution_definition.set_stance('evolution occurs via purely natural mechanisms',
+                                        'evolution involves more than purely natural mechanisms (intelligent design)')
+        abortion_definition.set_stance('pro-life', 'pro-choice')
+        existence_of_god_definition.set_stance('atheist', 'theist')
+
+        gun_control_definition.set_search_terms(['strict', 'gun', 'control'])
+        evolution_definition.set_search_terms(['evolution', 'natural', 'mechanism', 'intelligent', 'design'])
+        abortion_definition.set_search_terms(['abortion', 'prolife', 'prochoice'])
+        existence_of_god_definition.set_search_terms(['atheist', 'theist', 'God', 'exist'])
+
+        corpus_definitions = [existence_of_god_definition, abortion_definition, gun_control_definition,
+                              evolution_definition]
+
+        # Parse each of these topics with the ParsedDocumentsFourForums class
+        for cd in corpus_definitions:
+            cd.set_transform(get_transform(cd.topic))
+            parse_by_topic(cd)
 
     def test_invalid_stance_as_substring(self):
         """
