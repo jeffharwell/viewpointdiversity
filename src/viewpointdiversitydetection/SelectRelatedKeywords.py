@@ -366,6 +366,23 @@ class SelectRelatedKeywords:
 
         return self.find_terms_from_sorted_df(sorted_terms_df, k)
 
+    def calculate_term_weight(self, k, row):
+        """
+        Calculate the term weight for a given dataframe row
+        :param k: the k value
+        :param row: dictionary holding the row values
+        :return: the term weight
+        """
+        if row['co_weight'] <= 0:
+            # If co-weight is 0 the log function will blow up, so set it to something very small, the inverse
+            # of the total number of stems in the corpus. In the future we should use 1 + to avoid this problem.
+
+            # In practice the small value drives the weight so far negative that it will never be selected.
+            small_value = 1.0/len(self.stem_to_doc)
+            return math.log2(k * small_value) * row['idf']
+        else:
+            return math.log2(k * row['co_weight']) * row['idf']
+
     def get_related_keywords_context_threshold(self, k, mean_num_terms_matched):
         """
         Weighs co-terms with 'k' and then selects terms until the average number of matched terms
@@ -376,8 +393,9 @@ class SelectRelatedKeywords:
                selecting new terms from our list of sorted candidate terms.
         """
         # Use the k value to calculate our weights
-        self.coterm_df['weighted'] = self.coterm_df.apply(lambda x: math.log2(k * x['co_weight']) * x['idf'],
-                                                          axis='columns')
+        # self.coterm_df['weighted'] = self.coterm_df.apply(lambda x: math.log2(k * x['co_weight']) * x['idf'],
+        #                                                  axis='columns')
+        self.coterm_df['weighted'] = self.coterm_df.apply(lambda x: self.calculate_term_weight(k, x), axis='columns')
 
         # Sort by weight descending
         sorted_terms_df = self.coterm_df.sort_values('weighted', ascending=False, inplace=False)
