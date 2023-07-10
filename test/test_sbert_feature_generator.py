@@ -68,7 +68,7 @@ class SBertFeatureGeneratorTest(unittest.TestCase):
         context_size = 6
 
         fvt = FeatureVectorsAndTargets(pdo, w2v_obj, search_terms, related_terms, context_size)
-        fvt.create_feature_vectors_and_targets()
+        fvt.create_feature_vectors_and_targets(feature_type='separate')
         print("First Feature Vector")
         print(fvt.feature_vectors[0])
         print("First Target Class")
@@ -80,7 +80,7 @@ class SBertFeatureGeneratorTest(unittest.TestCase):
         # The 'search' and 'related' components together should be equal to the word2vec
         # portion of the full feature array.
         combined = list(fvt.feature_vectors_as_components[0]['search']) + \
-                   list(fvt.feature_vectors_as_components[0]['related'])
+            list(fvt.feature_vectors_as_components[0]['related'])
         combined_array = np.array(combined)
         len_sentiment = len(fvt.feature_vectors_as_components[0]['sentiment'])
         just_w2v = fvt.feature_vectors[0][len_sentiment:]
@@ -118,7 +118,7 @@ class SBertFeatureGeneratorTest(unittest.TestCase):
         # rc.stance_b = 'opposes strict gun control'
         rc.stance_a = 'pro-life'
         rc.stance_b = 'pro-choice'
-        corpus_stats = rc.print_stats()
+        # corpus_stats = rc.print_stats()
         pdo = ParsedDocumentsFourForums(tf, topic, rc.stance_a,
                                         rc.stance_b, database, host, user, password)
         query_limit = 750
@@ -139,7 +139,7 @@ class SBertFeatureGeneratorTest(unittest.TestCase):
         fvt = FeatureVectorsAndTargets(pdo, vector_model, search_terms, related_terms, context_size)
         print("Starting Feature Creation")
         start = time.process_time()
-        fvt.create_feature_vectors_and_targets()
+        fvt.create_feature_vectors_and_targets(feature_type='separate')
         end = time.process_time()
         print(f"Created {len(fvt.feature_vectors)} feature vectors in {(end - start) / 60:.2f} minutes.")
 
@@ -184,7 +184,7 @@ class SBertFeatureGeneratorTest(unittest.TestCase):
         context_size = 6
 
         fvt = FeatureVectorsAndTargets(pdo, w2v_obj, search_terms, related_terms, context_size)
-        fvt.create_feature_vectors_and_targets()
+        fvt.create_feature_vectors_and_targets(feature_type='separate')
         print("First Feature Vector")
         print(fvt.feature_vectors[0])
         print("First Target Class")

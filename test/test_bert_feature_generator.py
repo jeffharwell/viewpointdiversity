@@ -67,7 +67,7 @@ class BertFeatureGeneratorTest(unittest.TestCase):
         context_size = 6
 
         fvt = FeatureVectorsAndTargets(pdo, w2v_obj, search_terms, related_terms, context_size)
-        fvt.create_feature_vectors_and_targets()
+        fvt.create_feature_vectors_and_targets(feature_type='separate')
         print("First Feature Vector")
         print(fvt.feature_vectors[0])
         print("First Target Class")

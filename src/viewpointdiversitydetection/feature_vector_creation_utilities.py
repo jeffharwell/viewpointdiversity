@@ -47,14 +47,14 @@ def combine_as_average(vector1, vector2, include_zeros=True):
 
     if len(vector1) != len(vector2):
         raise RuntimeError("Vectors must be of equal length!")
-    empty_sentiment_vector = [0.0] * len(vector1)
-    if vector1 == empty_sentiment_vector and vector2 == empty_sentiment_vector:
+    empty_vector = [0.0] * len(vector1)
+    if vector1 == empty_vector and vector2 == empty_vector:
         # We received two zero vectors, don't need to compute an average for that
-        return empty_sentiment_vector
-    if vector1 == empty_sentiment_vector and not include_zeros:
+        return empty_vector
+    if vector1 == empty_vector and not include_zeros:
         # If vector1 is empty, and we are not including zeros, then the average is vector2
         return vector2
-    if vector2 == empty_sentiment_vector and not include_zeros:
+    if vector2 == empty_vector and not include_zeros:
         # If vector2 is empty, and we are not including zeros, then the average is vector1
         return vector1
     nv1 = np.array(vector1)

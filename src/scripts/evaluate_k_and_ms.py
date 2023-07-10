@@ -305,7 +305,7 @@ def create_features_from_keyword_list(related_keywords, pdo, vector_model, cd, e
     ec = generate_contexts_structure(pdo, cd.search_terms, related_keywords, extract_context_size)
     print("Starting Feature Creation")
     start = time.process_time()
-    fvt.create_feature_vectors_and_targets()
+    fvt.create_feature_vectors_and_targets(feature_type='separate')
     end = time.process_time()
     print(f"Created {len(fvt.feature_vectors)} feature vectors in {(end - start) / 60:.2f} minutes.")
 

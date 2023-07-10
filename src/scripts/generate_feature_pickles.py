@@ -175,7 +175,7 @@ def main(vector_model_index):
             print("Creating Features")
             context_size = 6
             fvt = vdd.FeatureVectorsAndTargets(pdo, vector_model, cd.search_terms, related_terms, context_size)
-            fvt.create_feature_vectors_and_targets()
+            fvt.create_feature_vectors_and_targets(feature_type='separate')
             print(f"Created {len(fvt.feature_vectors)} feature vectors.")
 
             outfile = open(pickle_name, 'wb')

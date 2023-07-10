@@ -46,9 +46,9 @@ class FeatureVectorsAndTargetsHolderTest(unittest.TestCase):
         context_size = 6
 
         fvt = FeatureVectorsAndTargets(pdo, vector_model, search_terms, related_terms, context_size)
-        fvt.create_feature_vectors_and_targets()
+        fvt.create_feature_vectors_and_targets(feature_type='separate')
 
-        # The holder needs enough information that we can generate a markdown table from
+        # The holder needs enough information that we can generate a Markdown table from
         # the holder and the trained model using the 'generate_markdown_table' function in VDD
         # vdd.generate_markdown_table(corpus_name, search_terms, parameters, test_y, y_pred, prob_test,
         #                             round(len(test_y) * .1), label_a, label_b)
@@ -60,7 +60,7 @@ class FeatureVectorsAndTargetsHolderTest(unittest.TestCase):
         self.assertTrue(holder.feature_vectors == fvt.feature_vectors)
         self.assertTrue(holder.feature_vectors_as_components == fvt.feature_vectors_as_components)
         self.assertTrue(holder.targets_for_features == fvt.targets_for_features)
-        fvt.targets_for_features.append(2)
+        fvt.targets_for_features[0] = 'bad_target'
         # If they are copies making a change to one should not change the other
         self.assertFalse(holder.targets_for_features == fvt.targets_for_features)
 

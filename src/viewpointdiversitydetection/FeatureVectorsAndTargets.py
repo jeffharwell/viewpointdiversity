@@ -38,7 +38,7 @@ class FeatureVectorsAndTargets:
 
         self.pass_sentences_for_feature_extraction = False
 
-    def create_feature_vectors_and_targets(self, verbose_level=1):
+    def create_feature_vectors_and_targets(self, feature_type, verbose_level=1):
         """
         Instructs the object to create and store the feature vectors and their associated target classes. The
         results are stored in the attributes 'feature_vectors' and 'targets_for_features'.
@@ -46,9 +46,26 @@ class FeatureVectorsAndTargets:
         Verbosity levels of greater than 1 will print out the indices of the documents that do not have any
         contexts extracted. Verbosity level of 1 gives that information in summary form.
 
+        :param feature_type: 'search only', 'related only', or 'mean'
         :param verbose_level: the verbosity of the output, currently 0, 1, 2, or greater than 2 for maximum
                               output.
         """
+
+        search_only = False
+        related_only = False
+        feature_mean = False
+        if feature_type == 'separate':
+            # This is the default setting, no need to change anything
+            pass
+        elif feature_type == 'search only':
+            search_only = True
+        elif feature_type == 'related only':
+            related_only = True
+        elif feature_type == 'mean':
+            feature_mean = True
+        else:
+            raise RuntimeError(f"feature type '{feature_type}' is not supported. Requires either 'search only', "
+                               f"'related only', or 'mean'.")
 
         #
         # Extract Contexts
@@ -71,8 +88,15 @@ class FeatureVectorsAndTargets:
         min_measures = ['compound', 'polarity', 'subjectivity']
         sfg_obj = SentimentFeatureGenerator(avg_measures, max_measures, min_measures, False)
         sfg_obj.exclude_zeros_from_averages()
-        search_sentiment_vectors_by_doc_id = sfg_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('search'))
-        related_sentiment_vectors_by_doc_id = sfg_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('related'))
+        if related_only:
+            search_sentiment_vectors_by_doc_id = {}
+        else:
+            search_sentiment_vectors_by_doc_id = sfg_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('search'))
+
+        if search_only:
+            related_sentiment_vectors_by_doc_id = {}
+        else:
+            related_sentiment_vectors_by_doc_id = sfg_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('related'))
 
         #
         # Create the Word2Vec Features
@@ -103,25 +127,34 @@ class FeatureVectorsAndTargets:
         if self.pass_sentences_for_feature_extraction:
             # We will pass the contexts pull the parsed document object so that the embedding generator
             # has access to the full sentence, not just the extracted context tokens
-            search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(self.contexts,
+            if related_only:
+                search_word2vec_vectors_by_doc_id = {}
+            else:
+                search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(self.contexts,
                                                                                                 'search', self.pdo)
-            related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(self.contexts,
+            if search_only:
+                related_word2vec_vectors_by_doc_id = {}
+            else:
+                related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(self.contexts,
                                                                                                  'related', self.pdo)
         else:
             # The embedding generator just needs to extracted context tokens
-            search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(
-                ec.get_contexts_by_doc_id_for('search'))
-            related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(
-                ec.get_contexts_by_doc_id_for('related'))
+            if related_only:
+                search_word2vec_vectors_by_doc_id = {}
+            else:
+                search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(
+                    ec.get_contexts_by_doc_id_for('search'))
 
-        # We have to figure out the size of our feature vectors so that we can create empty
-        # vectors of the right size.
-        first_id = list(search_sentiment_vectors_by_doc_id.keys())[0]
-        self.length_of_sentiment_vector = len(search_sentiment_vectors_by_doc_id[first_id])
-        first_id = list(search_word2vec_vectors_by_doc_id.keys())[0]
-        self.length_of_word2vec_vector = len(search_word2vec_vectors_by_doc_id[first_id])
-        self.empty_sentiment_vector = [0.0] * self.length_of_sentiment_vector
+            if search_only:
+                related_word2vec_vectors_by_doc_id = {}
+            else:
+                related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors(
+                    ec.get_contexts_by_doc_id_for('related'))
+
+        # Create empty vectors of the right size.
+        self.length_of_word2vec_vector = w2v_obj.vector_size
         self.empty_word2vec_vector = [0.0] * self.length_of_word2vec_vector
+        self.empty_sentiment_vector = sfg_obj.empty_vector
 
         # We may have a certain number of documents that did not have any contexts extracted
         # We don't want to include those in our final feature set.
@@ -170,7 +203,19 @@ class FeatureVectorsAndTargets:
                     related_sentiment = self.empty_sentiment_vector
 
                 sv = combine_as_average(search_sentiment, related_sentiment, include_zeros=True)
-                self.feature_vectors[i] = sv + list(search_word2vec) + list(related_word2vec)
+                if search_only:
+                    # we are only using the search keyword context
+                    self.feature_vectors[i] = sv + list(search_word2vec)
+                elif related_only:
+                    # we are only using the related keyword context
+                    self.feature_vectors[i] = sv + list(related_word2vec)
+                elif feature_mean:
+                    # we are calculating the mean of the context
+                    self.feature_vectors[i] = sv + combine_as_average(list(search_word2vec), list(related_word2vec), include_zeros=False)
+                else:
+                    # include the contexts separately
+                    self.feature_vectors[i] = sv + list(search_word2vec) + list(related_word2vec)
+
                 self.feature_vectors_as_components[i] = {'sentiment': sv,
                                                          'search': search_word2vec,
                                                          'related': related_word2vec}
