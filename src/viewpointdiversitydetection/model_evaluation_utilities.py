@@ -116,6 +116,7 @@ def analyze_top_predictions(answers, predictions, probabilities, top_number, cla
     :param top_number: the number of top performers to analyze
     :param class_1_label: The label assigned to the second class
     :param class_2_label: The label assigned to the second class
+    :return None: prints the statistics, no return value
     """
     if top_number > len(answers):
         raise RuntimeError("Specified number of data points to analyze %s is greater then the number of samples %s" % (
@@ -217,7 +218,7 @@ def calculate_stats(answers, predictions, cm):
     return stats
 
 
-def calculate_stats_as_float(answers, predictions, cm):
+def calculate_stats_as_float(answers, predictions, cm, class_1_label, class_2_label, total_data_stats):
     """
     Prints the Stats for a given class label, but return floating point values, not strings.
     If a value is undefined return -1.
@@ -225,6 +226,10 @@ def calculate_stats_as_float(answers, predictions, cm):
     :param answers: an array of answers
     :param predictions: an array of predictions
     :param cm: confusion matrix of form [[TP, FN], [FP, TN]]
+    :param class_1_label: the label for our positive class
+    :param class_2_label: the label for our negative class
+    :param total_data_stats: overall percent for each class
+                             {class_1_label: total_percent_class_1, class_2_label: total_percent_class_2}
     """
     # confusion matrix looks like this [[ 23, 63], [ 40, 260]]
     #                                  [[TP, FN], [FP, TN]]
@@ -267,6 +272,14 @@ def calculate_stats_as_float(answers, predictions, cm):
 
     bal_acc = metrics.balanced_accuracy_score(answers, predictions)
     stats['Bal Acc'] = bal_acc
+
+    # Calculate Lift for each class and add it to our stats dictionary
+    stats['Lift'] = {}
+
+    # Now calculate lift for each class
+    for class_label, avg_rate_in_data in total_data_stats.items():
+        lift = (sum([1 for a in answers if a == class_label])*1.0 / len(answers)) / avg_rate_in_data
+        stats['Lift'][class_label] = lift
 
     return stats
 
@@ -320,8 +333,15 @@ def create_run_stats(answers, predictions, probabilities, top_number, class_1_la
     # Get the TB confusion matrix
     tb_cm = confusion_matrix(tb_answers, tb_predictions, labels=[class_1_label, class_2_label])
 
+    # Calculate our data data set statistics
+    total_count_class_1 = sum([1 for a in answers if a == class_1_label])
+    total_count_class_2 = sum([1 for a in answers if a == class_2_label])
+    total_percent_class_1 = total_count_class_1 / len(answers)
+    total_percent_class_2 = total_count_class_2 / len(answers)
+    total_data_stats = {class_1_label: total_percent_class_1, class_2_label: total_percent_class_2}
+
     # create the statistics
-    stats = calculate_stats_as_float(tb_answers, tb_predictions, tb_cm)
+    stats = calculate_stats_as_float(tb_answers, tb_predictions, tb_cm, class_1_label, class_2_label, total_data_stats)
     return stats
 
 
@@ -463,14 +483,15 @@ def generate_markdown_table(corpus_name, search_terms, estimator_parameters, ans
     # Create the Table
     #
 
-    header_list = ['Corpus', 'Search Terms', 'Parameters', 'Class Dist', 'Data Set', 'Top/Class a', 'Bottom/Class b', 'Combined', 'TB Stats']
+    header_list = ['Corpus', 'Search Terms', 'Parameters', 'Class Dist', 'Data Set', 'Top/Class a', 'Bottom/Class b',
+                   'Combined', 'TB Stats']
     divider_list = create_table_divider(header_list)
     header_string = create_row_from_list(header_list)
     divider_string = create_row_from_list(divider_list)
 
     # Full data set confusion matrix
     full_data_set_cm = confusion_matrix(answers, predictions, labels=[class_1_label, class_2_label])
-    # Top and Bottom confusion Matrixes
+    # Top and Bottom confusion Matrices
     top_cm = confusion_matrix(answers_class_1, predictions_class_1, labels=[class_1_label, class_2_label])
     bottom_cm = confusion_matrix(answers_class_2, predictions_class_2, labels=[class_1_label, class_2_label])
     # Combined Top and Bottom Confusion Matrix

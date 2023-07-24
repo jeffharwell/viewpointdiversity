@@ -46,7 +46,7 @@ class FeatureVectorsAndTargets:
         Verbosity levels of greater than 1 will print out the indices of the documents that do not have any
         contexts extracted. Verbosity level of 1 gives that information in summary form.
 
-        :param feature_type: 'search only', 'related only', or 'mean'
+        :param feature_type: 'separate', 'search only', 'related only', or 'mean'
         :param verbose_level: the verbosity of the output, currently 0, 1, 2, or greater than 2 for maximum
                               output.
         """
@@ -91,12 +91,14 @@ class FeatureVectorsAndTargets:
         if related_only:
             search_sentiment_vectors_by_doc_id = {}
         else:
-            search_sentiment_vectors_by_doc_id = sfg_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('search'))
+            search_sentiment_vectors_by_doc_id = sfg_obj.\
+                generate_feature_vectors(ec.get_contexts_by_doc_id_for('search'))
 
         if search_only:
             related_sentiment_vectors_by_doc_id = {}
         else:
-            related_sentiment_vectors_by_doc_id = sfg_obj.generate_feature_vectors(ec.get_contexts_by_doc_id_for('related'))
+            related_sentiment_vectors_by_doc_id = sfg_obj.\
+                generate_feature_vectors(ec.get_contexts_by_doc_id_for('related'))
 
         #
         # Create the Word2Vec Features
@@ -130,13 +132,13 @@ class FeatureVectorsAndTargets:
             if related_only:
                 search_word2vec_vectors_by_doc_id = {}
             else:
-                search_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(self.contexts,
-                                                                                                'search', self.pdo)
+                search_word2vec_vectors_by_doc_id = w2v_obj\
+                    .generate_feature_vectors_from_sentences(self.contexts, 'search', self.pdo)
             if search_only:
                 related_word2vec_vectors_by_doc_id = {}
             else:
-                related_word2vec_vectors_by_doc_id = w2v_obj.generate_feature_vectors_from_sentences(self.contexts,
-                                                                                                 'related', self.pdo)
+                related_word2vec_vectors_by_doc_id = w2v_obj\
+                    .generate_feature_vectors_from_sentences(self.contexts, 'related', self.pdo)
         else:
             # The embedding generator just needs to extracted context tokens
             if related_only:
@@ -211,7 +213,8 @@ class FeatureVectorsAndTargets:
                     self.feature_vectors[i] = sv + list(related_word2vec)
                 elif feature_mean:
                     # we are calculating the mean of the context
-                    self.feature_vectors[i] = sv + combine_as_average(list(search_word2vec), list(related_word2vec), include_zeros=False)
+                    self.feature_vectors[i] = sv + combine_as_average(list(search_word2vec), list(related_word2vec),
+                                                                      include_zeros=False)
                 else:
                     # include the contexts separately
                     self.feature_vectors[i] = sv + list(search_word2vec) + list(related_word2vec)

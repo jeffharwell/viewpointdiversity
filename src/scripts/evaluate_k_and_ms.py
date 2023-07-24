@@ -3,10 +3,11 @@ import pickle
 import re
 import time
 
+import numpy as np
 import pandas
 import sklearn
 from nltk import SnowballStemmer
-from sklearn import svm, model_selection
+from sklearn import svm
 
 import viewpointdiversitydetection as vdd
 
@@ -15,8 +16,15 @@ import viewpointdiversitydetection as vdd
 # Related Keyword Functions
 #
 
-def get_pdo(corpus_definition, token_filter, tokenize=False):
-    cd = corpus_definition
+def get_pdo(corpus_definition_obj, token_filter, tokenize=False):
+    """
+
+    :param corpus_definition_obj: a corpus definition object
+    :param token_filter: a token filter object
+    :param tokenize: if set to true Spacy will only tokenize the document
+    :return: ParsedDocumentsFourForums object
+    """
+    cd = corpus_definition_obj
 
     # Contact the database
     config = configparser.ConfigParser()
@@ -33,7 +41,7 @@ def get_pdo(corpus_definition, token_filter, tokenize=False):
     # rc.print_stats()
 
     pdo = vdd.ParsedDocumentsFourForums(token_filter, cd.topic, rc.stance_a,
-                                    rc.stance_b, database, host, user, password)
+                                        rc.stance_b, database, host, user, password)
     pdo.stance_agreement_cutoff = rc.stance_agreement_cutoff
     label_a = pdo.get_stance_label(rc.stance_a)
     label_b = pdo.get_stance_label(rc.stance_b)
@@ -113,11 +121,12 @@ def generate_contexts_structure(pdo_obj, search_terms, related_terms, context_si
 
 
 def tabulate_result_data(run_type, k, mean_match_threshold, use_topics,
+                         related_context_size, extract_context_size,
                          cd, pdo, ec, related_keywords,
                          best_c, best_gamma, best_class_weight,
                          num_training_documents,
                          data_x, data_x_df,
-                         data_y, y_pred, y_pred_prob):
+                         data_y, y_pred, y_prob):
     search_terms = cd.search_terms
     label_a = pdo.get_stance_label(cd.stance_a)
     label_b = pdo.get_stance_label(cd.stance_b)
@@ -125,7 +134,7 @@ def tabulate_result_data(run_type, k, mean_match_threshold, use_topics,
 
     print(f"--- Run Type: {run_type} ---")
     print(
-        f"Confusion matrix for the entire test set. Stance '{cd.stance_a}' label '{label_a}' "
+        f"Confusion matrix for the entire {run_type} set. Stance '{cd.stance_a}' label '{label_a}' "
         f"is positive. C = {best_c}, gamma = {best_gamma}, class_weight = {best_class_weight}")
     print(sklearn.metrics.confusion_matrix(data_y, y_pred, labels=[label_a, label_b]))
     print("Balanced Accuracy: %.4f" % overall_balanced_accuracy)
@@ -133,15 +142,16 @@ def tabulate_result_data(run_type, k, mean_match_threshold, use_topics,
     # record our results
     parameters = {'C': best_c, 'gamma': best_gamma, 'class w': best_class_weight,
                   'IAA': pdo.stance_agreement_cutoff, 'word2vec': 'SBERT', 'k': k, 'ms': mean_match_threshold,
+                  'rc': related_context_size, 'ec': extract_context_size,
                   'topics': str(use_topics),
                   'overall BA': overall_balanced_accuracy}
     corpus_name = 'fourforums' + "<br>" + f"{cd.topic}"
     # Create our statistics from the model for the top 10% most confident predictions
-    tbb_stats = vdd.create_run_stats(data_y, y_pred, y_pred_prob,
+    tbb_stats = vdd.create_run_stats(data_y, y_pred, y_prob,
                                      round(len(data_y) * .1), label_a, label_b)
     # The full markdown table string (for our viewing pleasure)
     table_string = vdd.generate_markdown_table(corpus_name, search_terms,
-                                               parameters, data_y, y_pred, y_pred_prob,
+                                               parameters, data_y, y_pred, y_prob,
                                                round(len(data_y) * .1), label_a, label_b)
     print("TBB Balanced Accuracy: %.4f" % tbb_stats['Bal Acc'])
 
@@ -151,7 +161,7 @@ def tabulate_result_data(run_type, k, mean_match_threshold, use_topics,
     result_df = data_x_df.copy()
     result_df['feature_scaled'] = data_x.tolist()
     result_df['predicted'] = y_pred.tolist()
-    result_df['probability'] = y_pred_prob.tolist()
+    result_df['probability'] = y_prob.tolist()
 
     # Grab the extracted sentences and the terms for each document
     result_df[['total_terms', 'terms_matching', 'terms_extracted', 'unique_terms_extracted',
@@ -166,12 +176,14 @@ def tabulate_result_data(run_type, k, mean_match_threshold, use_topics,
             'k_value': k,
             'ms_value': mean_match_threshold,
             'topic_vectors': use_topics,
+            'related_context_size': related_context_size,
+            'extract_context_size': extract_context_size,
             'num_training_documents': num_training_documents,
             'num_input_documents': len(data_x),
             'num_corpus_documents': num_corpus_docs,
             'target': data_y.copy(),
             'predicted': y_pred.copy(),
-            'probability': y_pred_prob.copy(),
+            'probability': y_prob.copy(),
             'overall_balanced_accuracy': overall_balanced_accuracy,
             'tbb_balanced_accuracy': tbb_stats['Bal Acc'],
             'tbb_stats': tbb_stats,
@@ -192,23 +204,47 @@ def tabulate_result_data(run_type, k, mean_match_threshold, use_topics,
 def run_svm_with_params(cd, pdo, related_keywords, ec,
                         best_c, best_gamma, best_class_weight,
                         k, mean_match_threshold, use_topics,
+                        related_context_size, extract_context_size,
                         train_x_df, test_x_df,
                         train_x, train_y, test_x, test_y):
+    print(f"Training Data 1st Document: Mean {np.mean(train_x[0])}, Count {len(train_x[0])}")
+    print(f"Testing Data 1st Document: Mean {np.mean(test_x[0])}, Count {len(test_x[0])}")
+    print(f"Training Length: {len(train_x)} {len(test_x)}")
+    print(f"Testing Length: {len(test_x)} {len(test_y)}")
     # run the SVM with the best parameters
     clf = svm.SVC(probability=True, C=best_c, gamma=best_gamma, class_weight=best_class_weight)
     clf.fit(train_x, train_y)
-    y_pred_train = clf.predict(train_x)
-    y_pred = clf.predict(test_x)
-    prob_test = clf.predict_proba(test_x)
-    prob_train = clf.predict_proba(train_x)
+
+    # Run against the training data
+    train_y_pred = clf.predict(train_x)
+    train_y_prob = clf.predict_proba(train_x)
+
+    print("Confusion matrix straight from SVM")
+    label_a = pdo.get_stance_label(cd.stance_a)
+    label_b = pdo.get_stance_label(cd.stance_b)
+    print(sklearn.metrics.confusion_matrix(train_y, train_y_pred, labels=[label_a, label_b]))
+
+    # Run against the testing data
+    test_y_pred = clf.predict(test_x)
+    test_y_prob = clf.predict_proba(test_x)
+    print(sklearn.metrics.confusion_matrix(test_y, test_y_pred, labels=[label_a, label_b]))
+    print("End Straight Confusion Matrix")
 
     num_training_documents = len(train_x)
-    r_train = tabulate_result_data('train', k, mean_match_threshold, use_topics, cd, pdo, ec, related_keywords,
+    r_train = tabulate_result_data('train', k, mean_match_threshold, use_topics,
+                                   related_context_size, extract_context_size,
+                                   cd, pdo, ec, related_keywords,
                                    best_c, best_gamma, best_class_weight,
-                                   num_training_documents, train_x, train_x_df, train_y, y_pred_train, prob_train)
-    r_test = tabulate_result_data('test', k, mean_match_threshold, use_topics, cd, pdo, ec, related_keywords,
+                                   num_training_documents,
+                                   train_x, train_x_df,
+                                   train_y, train_y_pred, train_y_prob)
+    r_test = tabulate_result_data('test', k, mean_match_threshold, use_topics,
+                                  related_context_size, extract_context_size,
+                                  cd, pdo, ec, related_keywords,
                                   best_c, best_gamma, best_class_weight,
-                                  num_training_documents, test_x, test_x_df, test_y, y_pred, prob_test)
+                                  num_training_documents,
+                                  test_x, test_x_df,
+                                  test_y, test_y_pred, test_y_prob)
 
     return [r_train, r_test]
 
@@ -254,13 +290,16 @@ def run_gridsearch(train_x, train_y):
                                                 scoring=tabm.predictive_value_metric,
                                                 cv=skf,
                                                 n_jobs=8, error_score='raise')
+    start = time.process_time()
     grid.fit(train_x, train_y)
+    end = time.process_time()
+    print(f"Ran gridsearch in {(end - start):.2f} minutes.")
     print("Best Params: ", grid.best_params_)
 
     return grid.best_params_['C'], grid.best_params_['gamma'], grid.best_params_['class_weight']
 
 
-def create_features(k, ms, ern, pdo, vector_model, cd, extract_context_size):
+def create_features(k, ms, ern, pdo, vector_model_obj, cd, extract_context_size):
     """
     Given a value of k and ms, extract the related keywords and generate the features
 
@@ -268,7 +307,7 @@ def create_features(k, ms, ern, pdo, vector_model, cd, extract_context_size):
     :param ms:
     :param ern:
     :param pdo:
-    :param vector_model:
+    :param vector_model_obj:
     :param cd:
     :param extract_context_size:
     :return: related_keywords, ec, fvt
@@ -278,27 +317,28 @@ def create_features(k, ms, ern, pdo, vector_model, cd, extract_context_size):
     print(f"---k={k}, ms={ms}: {len(related_keywords)} returned---")
     print(related_keywords)
 
-    return create_features_from_keyword_list(related_keywords, pdo, vector_model,
+    ec, fvt = create_features_from_keyword_list(related_keywords, pdo, vector_model_obj,
                                              cd, extract_context_size)
+    return related_keywords, ec, fvt
 
 
-def create_features_from_keyword_list(related_keywords, pdo, vector_model, cd, extract_context_size):
+def create_features_from_keyword_list(related_keywords, pdo, vector_model_obj, cd, extract_context_size):
     """
     Given a value of k and ms, extract the related keywords and generate the features
 
     :param related_keywords:
     :param pdo:
-    :param vector_model:
+    :param vector_model_obj:
     :param cd:
     :param extract_context_size:
-    :return: related_keywords, ec, fvt
+    :return: ec, fvt
     """
     # Create Feature Vectors for Search and Related Terms
     # We will use the related terms that we learned from the training data to extract contexts
     # from the testing data as well.
 
     print("Creating Embedding and Sentiment Features from Extracted Contexts")
-    fvt = vdd.FeatureVectorsAndTargets(pdo, vector_model, cd.search_terms,
+    fvt = vdd.FeatureVectorsAndTargets(pdo, vector_model_obj, cd.search_terms,
                                        related_keywords, extract_context_size)
     # We need to create our own ExtractContexts structure so that we can grab the
     # sentences later
@@ -309,20 +349,20 @@ def create_features_from_keyword_list(related_keywords, pdo, vector_model, cd, e
     end = time.process_time()
     print(f"Created {len(fvt.feature_vectors)} feature vectors in {(end - start) / 60:.2f} minutes.")
 
-    return related_keywords, ec, fvt
+    return ec, fvt
 
 
-def run_experiment_on_corpus(cd, canonical_splits, related_context_size, extract_context_size,
-                             tf, stemmer, vector_model):
+def run_experiment_on_corpus(cd, c_splits, related_context_size, extract_context_size,
+                             token_filter_obj, stemmer_obj, vector_model_obj):
     """
     Run a full experiment on a corpus
 
-    :param vector_model:
-    :param stemmer:
-    :param tf:
+    :param vector_model_obj:
+    :param stemmer_obj:
+    :param token_filter_obj:
     :param extract_context_size:
     :param related_context_size:
-    :param canonical_splits:
+    :param c_splits:
     :param cd: Corpus Definition object
     :return
     """
@@ -331,11 +371,11 @@ def run_experiment_on_corpus(cd, canonical_splits, related_context_size, extract
     print("Processing Corpus %s" % cd.topic)
 
     # Get our processed corpus
-    pdo = get_pdo(cd, tf)
+    pdo = get_pdo(cd, token_filter_obj)
 
     # Pull in our canonical test/train split and put it in the right datastructures
     # for further processing
-    c_split = canonical_splits[cd.topic]
+    c_split = c_splits[cd.topic]
     train_x_df = c_split['train_df']
     test_x_df = c_split['test_df']
     verify_indices(pdo, train_x_df)
@@ -360,7 +400,7 @@ def run_experiment_on_corpus(cd, canonical_splits, related_context_size, extract
 
     # Prepare data structures to extract related nouns
     ern = vdd.SelectRelatedKeywords(pdo, train_x_df['doc_idx'].tolist(),
-                                    cd.search_terms, stemmer, related_context_size)
+                                    cd.search_terms, stemmer_obj, related_context_size)
     print(ern.coterm_df.describe())
 
     # Run the loop to evaluate a SVM for every combination of k, ms, and the use of topic vectors
@@ -372,7 +412,7 @@ def run_experiment_on_corpus(cd, canonical_splits, related_context_size, extract
         for k in k_list:  # different values of k to generate the related keywords
 
             # Extract our related keywords and create the features
-            related_keywords, ec, fvt = create_features(k, ms, ern, pdo, vector_model, cd, extract_context_size)
+            related_keywords, ec, fvt = create_features(k, ms, ern, pdo, vector_model_obj, cd, extract_context_size)
 
             # Make a copy so that we don't break anything outside the loop
             train_x_k_df = train_x_df.copy()
@@ -389,30 +429,29 @@ def run_experiment_on_corpus(cd, canonical_splits, related_context_size, extract
                 axis='columns', result_type='expand')
 
             # Filter out the rows that don't have a context embedding
-            train_x_filtered_df = train_x_k_df[train_x_k_df['has_context_embedding'] == True].copy()
-            test_x_filtered_df = test_x_k_df[test_x_k_df['has_context_embedding'] == True].copy()
+            train_x_final = train_x_k_df[train_x_k_df['has_context_embedding'] == True].copy()
+            test_x_final = test_x_k_df[test_x_k_df['has_context_embedding'] == True].copy()
 
             for use_topics in use_topic_vectors:  # do we use topic vectors as features or not
                 print(f"Using Topics: {use_topics}")
 
                 # Now create the feature vector
                 if use_topics:
-                    train_x_filtered_df['feature'] = train_x_filtered_df.apply(
+                    train_x_final['feature'] = train_x_final.apply(
                         lambda x: x['context_embedding'] + x['topic_feature'], axis='columns')
-                    test_x_filtered_df['feature'] = test_x_filtered_df.apply(lambda x:
-                                                                             x['context_embedding']+x['topic_feature'],
-                                                                             axis='columns')
+                    test_x_final['feature'] = test_x_final.apply(lambda x: x['context_embedding'] + x['topic_feature'],
+                                                                 axis='columns')
                 else:
-                    train_x_filtered_df['feature'] = train_x_filtered_df['context_embedding']
-                    test_x_filtered_df['feature'] = test_x_filtered_df['context_embedding']
+                    train_x_final['feature'] = train_x_final['context_embedding']
+                    test_x_final['feature'] = test_x_final['context_embedding']
 
                 # Extract the features from the dataframe and run them through the scaler
-                train_x = train_x_filtered_df['feature'].tolist()
-                test_x = test_x_filtered_df['feature'].tolist()
+                train_x = train_x_final['feature'].tolist()
+                test_x = test_x_final['feature'].tolist()
 
                 # don't use the list from the test/train split as we have lost some docs since then
-                train_y = train_x_filtered_df['target'].tolist()
-                test_y = test_x_filtered_df['target'].tolist()
+                train_y = train_x_final['target'].tolist()
+                test_y = test_x_final['target'].tolist()
 
                 #
                 # Scale
@@ -431,25 +470,29 @@ def run_experiment_on_corpus(cd, canonical_splits, related_context_size, extract
                 r = run_svm_with_params(cd, pdo, related_keywords, ec,
                                         best_c, best_gamma, best_class_weight,
                                         k, ms, use_topics,
-                                        train_x_filtered_df, test_x_filtered_df,
+                                        related_context_size, extract_context_size,
+                                        train_x_final, test_x_final,
                                         train_x, train_y, test_x, test_y)
                 results += r
     return results
 
 
-def run_context_size_experiment_on_corpus(cd, canonical_splits, k, ms, use_topic_vectors,
-                                          tf, stemmer, vector_model):
+def run_context_size_experiment_on_corpus(cd, c_splits, k, ms, use_topic_vectors,
+                                          related_context_sizes, extract_context_sizes,
+                                          token_filter_obj, stemmer_obj, vector_model_obj):
     """
     Run a full experiment on a corpus
 
     :param cd: Corpus Definition object
-    :param canonical_splits:
+    :param c_splits: a Cannonical Splits object
     :param k:
     :param ms:
     :param use_topic_vectors:
-    :param tf:
-    :param stemmer:
-    :param vector_model:
+    :param related_context_sizes: list of related context sizes to test
+    :param extract_context_sizes: list of extract context sizes to test
+    :param token_filter_obj:
+    :param stemmer_obj:
+    :param vector_model_obj:
     :return
     """
 
@@ -457,11 +500,11 @@ def run_context_size_experiment_on_corpus(cd, canonical_splits, k, ms, use_topic
     print("Processing Corpus %s" % cd.topic)
 
     # Get our processed corpus
-    pdo = get_pdo(cd, tf)
+    pdo = get_pdo(cd, token_filter_obj)
 
     # Pull in our canonical test/train split and put it in the right datastructures
     # for further processing
-    c_split = canonical_splits[cd.topic]
+    c_split = c_splits[cd.topic]
     train_x_df = c_split['train_df']
     test_x_df = c_split['test_df']
     verify_indices(pdo, train_x_df)
@@ -485,27 +528,24 @@ def run_context_size_experiment_on_corpus(cd, canonical_splits, k, ms, use_topic
         train_x_df['topic_feature'] = train_topic_vectors
         test_x_df['topic_feature'] = test_topic_vectors
 
-    related_context_sizes = [1, 2, 4, 6, 8]
-    extract_context_sizes = [1, 2, 4, 6, 8]
-
     # create a different list of keywords for each related context size
     for related_context_size in related_context_sizes:
         # Prepare data structures to extract related nouns
         ern = vdd.SelectRelatedKeywords(pdo, train_x_df['doc_idx'].tolist(),
-                                        cd.search_terms, stemmer, related_context_size)
+                                        cd.search_terms, stemmer_obj, related_context_size)
         # First extract our related terms given the value of k and ms
         related_keywords = ern.get_related_keywords_context_threshold(k, ms)
         print(f"---k={k}, ms={ms}, related_context_size={related_context_size}: {len(related_keywords)} "
               f"related nouns returned---")
-        # print(related_keywords)
-        # print(ern.coterm_df.describe())
+        print(related_keywords)
+        print(ern.coterm_df.describe())
 
         # Try a different model for each of our extract context sizes
         for extract_context_size in extract_context_sizes:
             print(f"-- Related Context Size: {related_context_size} Extract Context Size: {extract_context_size} --")
             # Extract our related keywords and create the features
             related_keywords, ec, fvt = create_features_from_keyword_list(related_keywords, pdo,
-                                                                          vector_model, cd, extract_context_size)
+                                                                          vector_model_obj, cd, extract_context_size)
 
             # Make a copy so that we don't break anything outside the loop
             train_x_k_df = train_x_df.copy()
@@ -522,47 +562,114 @@ def run_context_size_experiment_on_corpus(cd, canonical_splits, k, ms, use_topic
                 axis='columns', result_type='expand')
 
             # Filter out the rows that don't have a context embedding
-            train_x_final = train_x_k_df[train_x_k_df['has_context_embedding'] == True].copy()
-            test_x_final = test_x_k_df[test_x_k_df['has_context_embedding'] == True].copy()
+            train_x_filtered = train_x_k_df[train_x_k_df['has_context_embedding'] == True].copy()
+            test_x_filtered = test_x_k_df[test_x_k_df['has_context_embedding'] == True].copy()
 
             # Now create the feature vector
             if use_topic_vectors:
                 print(f"Using Topics: {use_topic_vectors}")
-                train_x_final['feature'] = train_x_final.apply(
+                train_x_filtered['feature'] = train_x_filtered.apply(
                     lambda x: x['context_embedding'] + x['topic_feature'], axis='columns')
-                test_x_final['feature'] = test_x_final.apply(lambda x: x['context_embedding'] + x['topic_feature'],
-                                                             axis='columns')
+                test_x_filtered['feature'] = test_x_filtered.apply(lambda x: x['context_embedding'] + x['topic_feature'],
+                                                                   axis='columns')
             else:
-                train_x_final['feature'] = train_x_final['context_embedding']
-                test_x_final['feature'] = test_x_final['context_embedding']
+                train_x_filtered['feature'] = train_x_filtered['context_embedding']
+                test_x_filtered['feature'] = test_x_filtered['context_embedding']
 
             # Extract the features from the dataframe and run them through the scaler
-            train_x = train_x_final['feature'].tolist()
-            test_x = test_x_final['feature'].tolist()
+            train_x = train_x_filtered['feature'].tolist()
+            test_x = test_x_filtered['feature'].tolist()
 
             # don't use the list from the test/train split as we have lost some docs since then
-            train_y = train_x_final['target'].tolist()
-            test_y = test_x_final['target'].tolist()
+            train_y = train_x_filtered['target'].tolist()
+            test_y = test_x_filtered['target'].tolist()
+
+            # print some basic stats about our feature vectors
+            training_vector_initial_length = len(
+                train_x_k_df[train_x_k_df['has_context_embedding'] == True][:1]['context_embedding'].tolist()[0])
+            testing_vector_initial_length = len(
+                test_x_k_df[test_x_k_df['has_context_embedding'] == True][:1]['context_embedding'].tolist()[0])
+            print(
+                f"Initial number of training vectors {len(train_x_k_df)}, with length {training_vector_initial_length}")
+            print(f"Initial number of testing vectors {len(test_x_k_df)}, with length {testing_vector_initial_length}")
+            print(f"Number of Training Vectors {len(train_x)}, length of training vector {len(train_x[0])}")
+            print(f"Number of Testing Vectors {len(test_x)}, length of training vector {len(test_x[0])}")
 
             #
             # Scale
             #
             scaler = sklearn.preprocessing.StandardScaler()
+            print(f"Training Data 1st Document: Mean Before {np.mean(train_x[0])}, Count {len(train_x[0])}")
+            print(f"Testing Data 1st Document: Mean Before {np.mean(test_x[0])}, Count {len(test_x[0])}")
             scaler.fit(train_x)
-            train_x = scaler.transform(train_x)
-            test_x = scaler.transform(test_x)
+            print(f"Scaler Num Feature {scaler.n_features_in_}")
+            # print(scaler.mean_)
+            train_x_scaled = scaler.transform(train_x)
+            test_x_scaled = scaler.transform(test_x)
+            print(
+                f"Training Data 1st Document: Mean After {np.mean(train_x_scaled[0])}, Count {len(train_x_scaled[0])}")
+            print(f"Testing Data 1st Document: Mean After {np.mean(test_x_scaled[0])}, Count {len(test_x_scaled[0])}")
 
             #
             # Run the SVM Gridsearch
             #
-            best_c, best_gamma, best_class_weight = run_gridsearch(train_x, train_y)
+            best_c, best_gamma, best_class_weight = run_gridsearch(train_x_scaled, train_y)
+
+            print("Without 'run_svm_with_params'")
+            # run the SVM with the best parameters
+            clf = svm.SVC(probability=True, C=best_c, gamma=best_gamma, class_weight=best_class_weight)
+            clf.fit(train_x_scaled, train_y)
+
+            # Run against the training data
+            train_y_pred = clf.predict(train_x_scaled)
+            train_y_prob = clf.predict_proba(train_x_scaled)
+
+            # Run against the testing data
+            test_y_pred = clf.predict(test_x_scaled)
+            test_y_prob = clf.predict_proba(test_x_scaled)
+
+            label_a = pdo.get_stance_label(cd.stance_a)
+            label_b = pdo.get_stance_label(cd.stance_b)
+
+            print(
+                f"k = {k}, ms = {ms}, related context size = {related_context_size}, "
+                f"extract_context_size = {extract_context_size}")
+
+            print(f"--- Run Type: Train ---")
+            print(
+                f"Confusion matrix for the entire 'train' set. Stance '{cd.stance_a}' label '{label_a}' "
+                f"is positive. C = {best_c}, gamma = {best_gamma}, class_weight = {best_class_weight}")
+            print(sklearn.metrics.confusion_matrix(train_y, train_y_pred, labels=[label_a, label_b]))
+            overall_balanced_accuracy = sklearn.metrics.balanced_accuracy_score(train_y, train_y_pred)
+            print("Balanced Accuracy: %.4f" % overall_balanced_accuracy)
+
+            tbb_stats = vdd.create_run_stats(train_y, train_y_pred, train_y_prob,
+                                             round(len(train_y) * .1), label_a, label_b)
+            print("TBB Balanced Accuracy: %.4f" % tbb_stats['Bal Acc'])
+
+            print("")
+
+            print(f"--- Run Type: Test ---")
+            print(
+                f"Confusion matrix for the entire 'test' set. Stance '{cd.stance_a}' label '{label_a}' "
+                f"is positive. C = {best_c}, gamma = {best_gamma}, class_weight = {best_class_weight}")
+            print(sklearn.metrics.confusion_matrix(test_y, test_y_pred, labels=[label_a, label_b]))
+            overall_balanced_accuracy = sklearn.metrics.balanced_accuracy_score(test_y, test_y_pred)
+            print("Balanced Accuracy: %.4f" % overall_balanced_accuracy)
+
+            tbb_stats = vdd.create_run_stats(test_y, test_y_pred, test_y_prob,
+                                             round(len(test_y) * .1), label_a, label_b)
+            print("TBB Balanced Accuracy: %.4f" % tbb_stats['Bal Acc'])
+
+            print("End without 'run_svm_with_params'")
 
             # Now run the SVM
             r = run_svm_with_params(cd, pdo, related_keywords, ec,
                                     best_c, best_gamma, best_class_weight,
                                     k, ms, use_topic_vectors,
-                                    train_x_final, test_x_final,
-                                    train_x, train_y, test_x, test_y)
+                                    related_context_size, extract_context_size,
+                                    train_x_filtered, test_x_filtered,
+                                    train_x_scaled, train_y, test_x_scaled, test_y)
             results += r
     return results
 
@@ -570,10 +677,10 @@ def run_context_size_experiment_on_corpus(cd, canonical_splits, k, ms, use_topic
 def get_transform(topic):
     if topic == 'abortion':
         # Compile the Regular Expression patterns that we need for the closure
-        prolife_pattern_lower = re.compile(r'[p][Rr][Oo][\s-]*[Ll][Ii][Ff][Ee]')
-        prochoice_pattern_lower = re.compile(r'[p][Rr][Oo][\s-]*[Cc][Hh][Oo][Ii][Cc][Ee]')
-        prolife_pattern_upper = re.compile(r'[P][Rr][Oo][\s-]*[Ll][Ii][Ff][Ee]')
-        prochoice_pattern_upper = re.compile(r'[P][Rr][Oo][\s-]*[Cc][Hh][Oo][Ii][Cc][Ee]')
+        prolife_pattern_lower = re.compile(r'p[Rr][Oo][\s-]*[Ll][Ii][Ff][Ee]')
+        prochoice_pattern_lower = re.compile(r'p[Rr][Oo][\s-]*[Cc][Hh][Oo][Ii][Cc][Ee]')
+        prolife_pattern_upper = re.compile(r'P[Rr][Oo][\s-]*[Ll][Ii][Ff][Ee]')
+        prochoice_pattern_upper = re.compile(r'P[Rr][Oo][\s-]*[Cc][Hh][Oo][Ii][Cc][Ee]')
 
         def transform(text):
             """
@@ -624,18 +731,18 @@ def return_corpus_definition_list():
     abortion_definition.set_search_terms(['abortion', 'prolife', 'prochoice'])
     existence_of_god_definition.set_search_terms(['atheist', 'theist', 'God', 'exist'])
 
-    corpus_definitions = [existence_of_god_definition, abortion_definition, gun_control_definition,
-                          evolution_definition]
+    all_corpus_definitions = [existence_of_god_definition, abortion_definition, gun_control_definition,
+                              evolution_definition]
 
     # Set the raw text transform functions by topic
-    for cd in corpus_definitions:
+    for cd in all_corpus_definitions:
         cd.set_transform(get_transform(cd.topic))
 
-    return corpus_definitions
+    return all_corpus_definitions
 
 
 if __name__ == '__main__':
-    with open('fourforums_cannonical_splits_20230707.pickle', 'rb') as f:
+    with open('./pickles/fourforums_cannonical_splits_20230707.pickle', 'rb') as f:
         canonical_splits = pickle.load(f)
 
     # Initialize our vector model
@@ -646,20 +753,21 @@ if __name__ == '__main__':
     stemmer = SnowballStemmer(language='english')
     # Save the results
     context_range_results = []
-    # Filename for the pickle that will record our results
-    c_pickle_filename = 'context_range_experiment_results_v2_20230709.pickle'
 
     corpus_definitions = return_corpus_definition_list()
+    print([cd.topic for cd in corpus_definitions])
 
     best_k = 100
     best_ms = 2
     best_topic_vectors = False
-    for cd in corpus_definitions:
-        r = run_context_size_experiment_on_corpus(cd, canonical_splits,
-                                                  best_k, best_ms, best_topic_vectors,
-                                                  tf, stemmer, vector_model)
-        context_range_results += r
-        gc.collect()
-        with open(c_pickle_filename, 'wb') as f:
-            pickle.dump(context_range_results, f)
-        break
+    rc_to_test = [1]
+    ec_to_test = [1]
+    for corpus_definition in corpus_definitions[:1]:
+        result = run_context_size_experiment_on_corpus(corpus_definition, canonical_splits,
+                                                       best_k, best_ms, best_topic_vectors,
+                                                       rc_to_test, ec_to_test,
+                                                       tf, stemmer, vector_model)
+        context_range_results += result
+
+    # print(context_range_results)
+
