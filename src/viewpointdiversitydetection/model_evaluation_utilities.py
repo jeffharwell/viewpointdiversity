@@ -218,7 +218,7 @@ def calculate_stats(answers, predictions, cm):
     return stats
 
 
-def calculate_stats_as_float(answers, predictions, cm, class_1_label, class_2_label, total_data_stats):
+def calculate_stats_as_float(answers, predictions, cm):
     """
     Prints the Stats for a given class label, but return floating point values, not strings.
     If a value is undefined return -1.
@@ -226,10 +226,6 @@ def calculate_stats_as_float(answers, predictions, cm, class_1_label, class_2_la
     :param answers: an array of answers
     :param predictions: an array of predictions
     :param cm: confusion matrix of form [[TP, FN], [FP, TN]]
-    :param class_1_label: the label for our positive class
-    :param class_2_label: the label for our negative class
-    :param total_data_stats: overall percent for each class
-                             {class_1_label: total_percent_class_1, class_2_label: total_percent_class_2}
     """
     # confusion matrix looks like this [[ 23, 63], [ 40, 260]]
     #                                  [[TP, FN], [FP, TN]]
@@ -272,14 +268,6 @@ def calculate_stats_as_float(answers, predictions, cm, class_1_label, class_2_la
 
     bal_acc = metrics.balanced_accuracy_score(answers, predictions)
     stats['Bal Acc'] = bal_acc
-
-    # Calculate Lift for each class and add it to our stats dictionary
-    stats['Lift'] = {}
-
-    # Now calculate lift for each class
-    for class_label, avg_rate_in_data in total_data_stats.items():
-        lift = (sum([1 for a in answers if a == class_label])*1.0 / len(answers)) / avg_rate_in_data
-        stats['Lift'][class_label] = lift
 
     return stats
 
@@ -338,10 +326,40 @@ def create_run_stats(answers, predictions, probabilities, top_number, class_1_la
     total_count_class_2 = sum([1 for a in answers if a == class_2_label])
     total_percent_class_1 = total_count_class_1 / len(answers)
     total_percent_class_2 = total_count_class_2 / len(answers)
-    total_data_stats = {class_1_label: total_percent_class_1, class_2_label: total_percent_class_2}
+    # total_data_stats = {class_1_label: total_percent_class_1, class_2_label: total_percent_class_2}
+
+    total_data_stats = {class_1_label: {'total_percent': total_percent_class_1,
+                                        'answers': answers_class_1,  # answers for our top 10% of class 1 predictions
+                                        'avg_rate_in_data': total_percent_class_1},
+                        class_2_label: {'total_percent': total_percent_class_2,
+                                        'answers': answers_class_2,  # answers for our top 10% of class 2 predictions
+                                        'avg_rate_in_data': total_percent_class_2}}
 
     # create the statistics
-    stats = calculate_stats_as_float(tb_answers, tb_predictions, tb_cm, class_1_label, class_2_label, total_data_stats)
+    stats = calculate_stats_as_float(tb_answers, tb_predictions, tb_cm)
+
+    # Calculate Lift for each class and add it to our stats dictionary
+    stats['Lift'] = {}
+    # Now calculate lift for each class
+    for class_label, data_stats in total_data_stats.items():
+        # This is a bit subtle
+        # If the algorithm works we will have more of the minority class, so the number of
+        # minority answers (not predictions) in the top or bottom 10% of the dataset (which one
+        # depends on if the minority viewpoint is labeled 'positive' or 'negative', which is arbitrary), and hence
+        # the lift, should go up for the minority class/viewpoint and up for the majority class/viewpoint.
+        # So we calculate the class 1 lift from the number of class 1 label in the top 10% of predictions versus the
+        # average number of class 1 labels in the corpus, and the class 2 lift from the number of class 2 labels in
+        # the bottom 10% of predictions versus the average number of class 2 labels in the corpus.
+
+        num_class_in_answers = sum([1 for a in data_stats['answers'] if a == class_label])*1.0
+        lift = (num_class_in_answers / len(data_stats['answers'])) / data_stats['avg_rate_in_data']
+        """
+        print(f"Class Label {class_label}, "
+              f"top percent {num_class_in_answers / len(data_stats['answers'])}, "
+              f"total_percent {data_stats['avg_rate_in_data']}, lift {lift}")
+        """
+        stats['Lift'][class_label] = lift
+
     return stats
 
 
