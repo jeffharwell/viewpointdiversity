@@ -95,7 +95,15 @@ class ParsedDocumentCommonCrawlTest(unittest.TestCase):
         assert(doc_relevance == df_list[2]['relevance'])
         assert(doc_id == df_list[2]['warc_record_id'])
 
-
+    def test_setting_spacy_processes(self):
+        """
+        Testing the ability to set the number of processes spawned by Spacy to
+        parse the corpus.
+        :return:
+        """
+        cc_pdo = ParsedDocumentsCommonCrawl(self.tf, self.cc_df)
+        cc_pdo.spacy_processes = 2
+        cc_pdo.process_corpus(print_stats=False)
 
 
 if __name__ == '__main__':
